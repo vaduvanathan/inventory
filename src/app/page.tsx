@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const TEAMS = [
+  "vaduvanathan",
   "EgoLab (Kolhapur)",
   "EgoLab (Hyderabad)",
   "Build AI (Surat)",
@@ -25,6 +26,12 @@ const TEAMS = [
   "Rudy"
 ];
 
+// Temporary Hardcoded Passwords for the Prototype
+const VALID_CREDENTIALS: Record<string, string> = {
+  "Admin": "9080043250",
+  "vaduvanathan": "7305410425"
+};
+
 export default function LoginPage() {
   const [teamName, setTeamName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -33,6 +40,12 @@ export default function LoginPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (teamName && phoneNumber) {
+      // Check if this team has a strict password requirement in our dictionary
+      if (VALID_CREDENTIALS[teamName] && VALID_CREDENTIALS[teamName] !== phoneNumber) {
+        alert("Incorrect Phone Number for this Team!");
+        return;
+      }
+
       localStorage.setItem("teamName", teamName);
       localStorage.setItem("phoneNumber", phoneNumber);
       
