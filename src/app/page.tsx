@@ -8,14 +8,14 @@ import { supabase } from "@/lib/supabase";
 export default function LoginPage() {
   const [teamName, setTeamName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [teamsList, setTeamsList] = useState<string[]>([]);
+  const [teamsList, setTeamsList] = useState<{name: string, role: string}[]>([]);
   const router = useRouter();
 
   useEffect(() => {
     async function fetchTeams() {
-      const { data, error } = await supabase.from("teams").select("name");
+      const { data, error } = await supabase.from("teams").select("name, role");
       if (data && !error) {
-        setTeamsList(data.map(t => t.name).filter(n => n.toLowerCase() !== "admin")); // Get all names except admin
+        setTeamsList(data);
       }
     }
     fetchTeams();
@@ -24,24 +24,22 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (teamName && phoneNumber) {
-      
-      // Query the database for matching team and phone number
       const { data, error } = await supabase
         .from("teams")
         .select("*")
-        .ilike("name", teamName) // Case insensitive match
+        .ilike("name", teamName)
         .eq("phone", phoneNumber)
         .single();
-        
+
       if (error || !data) {
-        alert("Incorrect Phone Number for this Team!");
+        alert("Incorrect Phone Number for this Account!");
         return;
       }
 
-      localStorage.setItem("teamName", teamName);
+      localStorage.setItem("teamName", data.name);
       localStorage.setItem("phoneNumber", phoneNumber);
-      
-      if (data.role === "admin" || teamName === "Admin") {
+
+      if (data.role === "admin") {
         router.push("/admin");
       } else {
         router.push("/dashboard");
@@ -53,23 +51,26 @@ export default function LoginPage() {
     <div className="flex h-screen flex-col items-center justify-center bg-gray-100 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
         <h1 className="mb-6 text-center text-3xl font-bold text-gray-900 border-b pb-4">Logistics Portal</h1>
-        
         <form onSubmit={handleLogin} className="space-y-4 text-black">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Team Name</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Account Name</label>
             <select
               value={teamName}
               onChange={(e) => setTeamName(e.target.value)}
               className="w-full rounded-lg border border-gray-300 p-3 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
               required
             >
-              <option value="" disabled>Select your team</option>
-              <option value="Admin" className="font-bold text-blue-600">HQ Admin</option>
-              {teamsList.map((team) => (
-                <option key={team} value={team}>
-                  {team}
-                </option>
-              ))}
+              <option value="" disabled>Select your account</option>
+              <optgroup label="Admin Accounts">
+                {teamsList.filter(t => t.role === "admin").map((t) => (
+                  <option key={t.name} value={t.name} className="font-bold text-purple-600">{t.name} (Admin)</option>
+                ))}
+              </optgroup>
+              <optgroup label="Team Accounts">
+                {teamsList.filter(t => t.role !== "admin").map((t) => (
+                  <option key={t.name} value={t.name}>{t.name}</option>
+                ))}
+              </optgroup>
             </select>
           </div>
 
