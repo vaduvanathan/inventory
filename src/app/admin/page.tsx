@@ -1,0 +1,96 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function AdminPage() {
+  const [requests, setRequests] = useState<any[]>([]);
+  const router = useRouter();
+
+  useEffect(() => {
+    const storedTeam = localStorage.getItem("teamName");
+    if (storedTeam?.toLowerCase() !== "admin") {
+      router.push("/");
+    } else {
+      const storedReqs = JSON.parse(localStorage.getItem("requests") || "[]");
+      setRequests(storedReqs);
+    }
+  }, [router]);
+
+  const updateStatus = (id: string, newStatus: string) => {
+    const updated = requests.map(req => req.id === id ? { ...req, status: newStatus } : req);
+    setRequests(updated);
+    localStorage.setItem("requests", JSON.stringify(updated));
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-8 text-black">
+      <div className="mx-auto max-w-6xl">
+        <header className="mb-8 flex items-center justify-between">
+          <h1 className="text-3xl font-bold">HQ Admin Dashboard</h1>
+          <button 
+            onClick={() => { localStorage.clear(); router.push("/"); }}
+            className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+          >
+            Logout
+          </button>
+        </header>
+
+        <div className="rounded-lg bg-white p-6 shadow">
+          <h2 className="mb-4 text-xl font-semibold border-b pb-2">All Pending & Approved Requests</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b bg-gray-100">
+                  <th className="p-3">Ticket ID</th>
+                  <th className="p-3">Team</th>
+                  <th className="p-3">Item</th>
+                  <th className="p-3">Qty</th>
+                  <th className="p-3">Address</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {requests.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-4 text-center text-gray-500">No requests in the system.</td>
+                  </tr>
+                ) : (
+                  requests.slice().reverse().map((req, i) => (
+                    <tr key={i} className="border-b">
+                      <td className="p-3 font-semibold">{req.id}</td>
+                      <td className="p-3">{req.team}</td>
+                      <td className="p-3">{req.item}</td>
+                      <td className="p-3">{req.quantity}</td>
+                      <td className="p-3 truncate max-w-[200px]">{req.location}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded text-xs text-white ${req.status === "sent" ? "bg-blue-500" : req.status === "approved" ? "bg-green-500" : "bg-red-500"}`}>
+                          {req.status === "sent" ? "Pending" : req.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="p-3 space-x-2">
+                        {req.status === "sent" && (
+                          <>
+                            <button onClick={() => updateStatus(req.id, "approved")} className="bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700">Approve</button>
+                            <button onClick={() => updateStatus(req.id, "denied")} className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700">Deny</button>
+                          </>
+                        )}
+                        {req.status === "approved" && (
+                          <span className="text-green-600 font-bold">Approved</span>
+                        )}
+                        {req.status === "denied" && (
+                          <span className="text-red-600 font-bold">Denied</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
