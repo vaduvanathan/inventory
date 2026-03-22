@@ -50,6 +50,8 @@ export default function DashboardPage() {
       factory_name: formData.get("factory_name"),
       person_name: formData.get("person_name"),
       phone_number: formData.get("phone_number"),
+      city: formData.get("city"),
+      state: formData.get("state"),
       location: formData.get("location"), // Full Address
       pincode: formData.get("pincode"),
       poc: formData.get("poc") || "",
@@ -74,135 +76,181 @@ export default function DashboardPage() {
     }
   };
 
+  const formatTicketId = (id: number) => `#${String(id).padStart(4, "0")}`;
+
   return (
-    <div className="min-h-screen bg-gray-50 p-8 text-black">
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-8 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Team Dashboard: {teamName}</h1>
+    <div className="min-h-screen bg-black text-white relative overflow-hidden font-sans pb-10">
+      {/* Background Orbs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-white opacity-5 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[10%] right-[-10%] w-[30%] h-[50%] rounded-full bg-white opacity-5 blur-[120px] pointer-events-none" />
+
+      <div className="mx-auto max-w-6xl p-4 md:p-8 relative z-10">
+        <header className="mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/10 pb-6">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Team Dashboard</h1>
+            <p className="text-white/50 mt-1">Logged in as <span className="text-white font-medium">{teamName}</span></p>
+          </div>
           <button 
             onClick={() => { localStorage.clear(); router.push("/"); }}
-            className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+            className="rounded-xl border border-white/20 bg-white/5 px-6 py-2.5 text-sm font-semibold text-white transition-all duration-300 hover:bg-white/10 hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] active:scale-95"
           >
             Logout
           </button>
         </header>
 
-        <div className="grid gap-8 md:grid-cols-2">
+        <div className="grid gap-8 md:grid-cols-12 items-start">
           {/* New Request Form */}
-          <div className="rounded-lg bg-white p-6 shadow">
-            <h2 className="mb-4 text-xl font-semibold border-b pb-2">Create New Request</h2>
-            <form onSubmit={handleNewRequest} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+          <div className="md:col-span-5 rounded-[2rem] bg-white/5 p-6 md:p-8 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)]">
+            <h2 className="mb-6 text-xl font-bold border-b border-white/10 pb-4">Create New Request</h2>
+            <form onSubmit={handleNewRequest} className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium">Factory Name *</label>
-                  <input name="factory_name" type="text" className="w-full rounded border p-2" required />
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">Factory Name *</label>
+                  <input name="factory_name" type="text" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none transition-all focus:bg-white/10 focus:border-white/30 focus:ring-2 focus:ring-white/10" required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium">Contact Person Name *</label>
-                  <input name="person_name" type="text" className="w-full rounded border p-2" required />
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">Contact Person *</label>
+                  <input name="person_name" type="text" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none transition-all focus:bg-white/10 focus:border-white/30 focus:ring-2 focus:ring-white/10" required />
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium">Phone Number *</label>
-                  <input name="phone_number" type="text" className="w-full rounded border p-2" required />
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">Phone Number *</label>
+                  <input name="phone_number" type="text" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none transition-all focus:bg-white/10 focus:border-white/30 focus:ring-2 focus:ring-white/10" required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium">Pincode *</label>
-                  <input name="pincode" type="text" className="w-full rounded border p-2" required />
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">POC in Factory</label>
+                  <input name="poc" type="text" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none transition-all focus:bg-white/10 focus:border-white/30 focus:ring-2 focus:ring-white/10" placeholder="Optional" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">City *</label>
+                  <input name="city" type="text" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none transition-all focus:bg-white/10 focus:border-white/30 focus:ring-2 focus:ring-white/10" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">State *</label>
+                  <input name="state" type="text" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none transition-all focus:bg-white/10 focus:border-white/30 focus:ring-2 focus:ring-white/10" required />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">Complete Address *</label>
+                  <input name="location" type="text" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none transition-all focus:bg-white/10 focus:border-white/30 focus:ring-2 focus:ring-white/10" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">Pincode *</label>
+                  <input name="pincode" type="text" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none transition-all focus:bg-white/10 focus:border-white/30 focus:ring-2 focus:ring-white/10" required />
+                </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-5 mt-2">
+                <label className="block text-sm font-bold mb-3 tracking-wide">Enter Item Quantities</label>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center group">
+                    <label className="block text-xs text-white/50 mb-2 group-hover:text-white transition-colors">Devices</label>
+                    <input name="device_qty" type="number" min="0" defaultValue="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-center text-lg font-bold text-white outline-none transition-all focus:bg-white/10 focus:border-white/30" />
+                  </div>
+                  <div className="text-center group">
+                    <label className="block text-xs text-white/50 mb-2 group-hover:text-white transition-colors">SD Cards</label>
+                    <input name="sd_card_qty" type="number" min="0" defaultValue="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-center text-lg font-bold text-white outline-none transition-all focus:bg-white/10 focus:border-white/30" />
+                  </div>
+                  <div className="text-center group">
+                    <label className="block text-xs text-white/50 mb-2 group-hover:text-white transition-colors">Hubs</label>
+                    <input name="charger_hub_qty" type="number" min="0" defaultValue="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-center text-lg font-bold text-white outline-none transition-all focus:bg-white/10 focus:border-white/30" />
+                  </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium">Complete Address *</label>
-                <textarea name="location" className="w-full rounded border p-2" required rows={2}></textarea>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">Additional Comments</label>
+                <textarea name="user_comment" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none transition-all focus:bg-white/10 focus:border-white/30 focus:ring-2 focus:ring-white/10" rows={2}></textarea>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium">POC in Factory (Optional)</label>
-                <input name="poc" type="text" className="w-full rounded border p-2" />
-              </div>
-
-              <div className="border-t pt-2">
-                <label className="block text-md font-semibold mb-2">Items Requested (Enter Quantities)</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-xs text-gray-600">Devices</label>
-                    <input name="device_qty" type="number" min="0" defaultValue="0" className="w-full rounded border p-2" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600">SD Cards</label>
-                    <input name="sd_card_qty" type="number" min="0" defaultValue="0" className="w-full rounded border p-2" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600">Charger Hubs</label>
-                    <input name="charger_hub_qty" type="number" min="0" defaultValue="0" className="w-full rounded border p-2" />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium">Additional Comments</label>
-                <textarea name="user_comment" className="w-full rounded border p-2" rows={2}></textarea>
-              </div>
-
-              <button type="submit" className="w-full rounded bg-green-600 p-3 font-bold text-white hover:bg-green-700">
+              <button type="submit" className="w-full mt-4 rounded-xl bg-white p-4 font-bold text-black transition-all duration-300 hover:bg-neutral-200 hover:-translate-y-1 active:scale-[0.98] shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)]">
                 Submit Request
               </button>
             </form>
           </div>
 
           {/* Current Status Tracker */}
-          <div className="rounded-lg bg-white p-6 shadow flex flex-col h-full">
-            <h2 className="mb-4 text-xl font-semibold border-b pb-2">My Requests</h2>
+          <div className="md:col-span-7 flex flex-col h-full rounded-[2rem] bg-white/5 p-6 md:p-8 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)]">
+            <h2 className="mb-6 text-xl font-bold border-b border-white/10 pb-4">My Requests Overview</h2>
             {requests.length === 0 ? (
-              <p className="text-gray-500">No requests submitted yet.</p>
+              <p className="text-white/40 text-center py-10 italic">No logistics requests submitted yet.</p>
             ) : (
-              <div className="space-y-4 overflow-y-auto flex-1 h-96">
-                {requests.map((req, i) => (
-                  <div key={i} className="rounded border p-4 cursor-pointer hover:bg-gray-50 transition" onClick={() => setExpandedId(expandedId === req.id ? null : req.id)}>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="font-bold">Request #{req.id}</span>
-                      <span className={`px-2 py-1 rounded text-xs text-white ${req.status === "sent" ? "bg-blue-500" : req.status === "approved" ? "bg-green-500" : "bg-red-500"}`}>
-                        {req.status === "sent" ? "Pending" : req.status.toUpperCase()}
+              <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1 max-h-[800px]">
+                {requests.map((req) => (
+                  <div 
+                    key={req.id} 
+                    className="rounded-2xl border border-white/10 bg-white/5 p-5 cursor-pointer transition-all duration-300 hover:bg-white/10 hover:border-white/20 hover:-translate-y-0.5 shadow-lg group overflow-hidden relative" 
+                    onClick={() => setExpandedId(expandedId === req.id ? null : req.id)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-lg font-bold tracking-tight text-white group-hover:text-blue-100 transition-colors">
+                        Ticket {formatTicketId(req.id)}
+                      </span>
+                      <span className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider text-black ${
+                        req.status === "sent" ? "bg-blue-300 shadow-[0_0_10px_rgba(147,197,253,0.5)]" : 
+                        req.status === "approved" ? "bg-green-300 shadow-[0_0_10px_rgba(134,239,172,0.5)]" : 
+                        "bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.5)]"
+                      }`}>
+                        {req.status === "sent" ? "Pending" : req.status}
                       </span>
                     </div>
-                    <p className="text-sm font-medium">{req.factory_name || req.team}</p>
-                    <p className="text-sm text-gray-500">Submitted: {new Date(req.created_at).toLocaleString()}</p>
-                    
-                    {expandedId === req.id && (
-                      <div className="mt-4 pt-4 border-t border-gray-200 text-sm space-y-2 bg-gray-50 p-3 rounded">
-                        <div className="grid grid-cols-2 gap-2">
-                          <p><strong>Person:</strong> {req.person_name}</p>
-                          <p><strong>Phone:</strong> {req.phone_number}</p>
-                          <p><strong>Pincode:</strong> {req.pincode}</p>
-                          <p><strong>POC:</strong> {req.poc || "N/A"}</p>
-                        </div>
-                        <p><strong>Address:</strong> {req.location}</p>
-                        
-                        <div className="bg-blue-50 p-2 rounded">
-                          <p className="font-semibold">Items requested:</p>
-                          <ul className="list-disc list-inside ml-4">
-                            {req.device_qty > 0 && <li>{req.device_qty}x Devices</li>}
-                            {req.sd_card_qty > 0 && <li>{req.sd_card_qty}x SD Cards</li>}
-                            {req.charger_hub_qty > 0 && <li>{req.charger_hub_qty}x Charger Hubs</li>}
-                          </ul>
-                        </div>
 
-                        {req.user_comment && (
-                          <p><strong>My Comments:</strong> {req.user_comment}</p>
-                        )}
-
-                        {(req.status === "approved" || req.status === "denied") && (
-                          <div className={`p-2 rounded mt-2 ${req.status === "approved" ? "bg-green-50" : "bg-red-50"}`}>
-                            <p><strong>Action by:</strong> {req.approved_by || "Admin"}</p>
-                            {req.action_timestamp && <p><strong>Time:</strong> {new Date(req.action_timestamp).toLocaleString()}</p>}
-                            {req.admin_comment && <p><strong>Admin Note:</strong> {req.admin_comment}</p>}
-                          </div>
-                        )}
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="font-semibold text-lg">{req.factory_name || "Factory"}</p>
+                        <p className="text-xs text-white/50">{req.city ? `${req.city}, ${req.state || ''}` : req.pincode}</p>
                       </div>
-                    )}
+                      <div className="text-right">
+                        <p className="text-xs text-white/50 mb-1">Devices</p>
+                        <p className="font-bold text-xl">{req.device_qty || 0}</p>
+                      </div>
+                    </div>
+                    
+                    {/* EXPANDED VIEW */}
+                    <div className={`transition-all duration-500 ease-in-out origin-top ${expandedId === req.id ? "max-h-[1000px] opacity-100 mt-5 pt-5 border-t border-white/10" : "max-h-0 opacity-0 m-0 p-0 border-0 overflow-hidden"}`}>
+                      <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm text-white/80">
+                        <div><span className="block text-[10px] uppercase text-white/40 mb-1">Contact</span>{req.person_name}</div>
+                        <div><span className="block text-[10px] uppercase text-white/40 mb-1">Phone</span>{req.phone_number}</div>
+                        <div><span className="block text-[10px] uppercase text-white/40 mb-1">Pincode</span>{req.pincode}</div>
+                        <div><span className="block text-[10px] uppercase text-white/40 mb-1">POC</span>{req.poc || "N/A"}</div>
+                        <div className="col-span-2"><span className="block text-[10px] uppercase text-white/40 mb-1">Address</span>{req.location}</div>
+                      </div>
+                      
+                      <div className="mt-4 rounded-xl bg-white/5 p-4 border border-white/10">
+                        <span className="block text-[10px] uppercase text-white/40 mb-2">Requested Breakdown</span>
+                        <div className="flex gap-4 font-medium text-sm">
+                          {req.device_qty > 0 && <div>Devices: <span className="text-white">{req.device_qty}</span></div>}
+                          {req.sd_card_qty > 0 && <div>SD Cards: <span className="text-white">{req.sd_card_qty}</span></div>}
+                          {req.charger_hub_qty > 0 && <div>Hubs: <span className="text-white">{req.charger_hub_qty}</span></div>}
+                        </div>
+                      </div>
+
+                      {req.user_comment && (
+                        <div className="mt-4 text-sm text-white/70 border-l-2 border-white/20 pl-3 py-1">
+                          <span className="block text-[10px] uppercase text-white/40 mb-1">Comment</span>
+                          {req.user_comment}
+                        </div>
+                      )}
+
+                      {(req.status === "approved" || req.status === "denied") && (
+                        <div className={`mt-4 p-4 rounded-xl border flex flex-col gap-2 shadow-inner ${
+                          req.status === "approved" ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20"
+                        }`}>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="font-semibold text-white">Processed by {req.approved_by || "Admin"}</span>
+                            {req.action_timestamp && <span className="text-[10px] text-white/50">{new Date(req.action_timestamp).toLocaleString()}</span>}
+                          </div>
+                          {req.admin_comment && <p className="text-sm italic text-white/90">"{req.admin_comment}"</p>}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
