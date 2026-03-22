@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -37,6 +36,7 @@ export default function LoginPage() {
       }
 
       localStorage.setItem("teamName", data.name);
+      localStorage.setItem("role", data.role); // Store role to make redirect checks robust
       localStorage.setItem("phoneNumber", phoneNumber);
 
       if (data.role === "admin") {
@@ -61,16 +61,9 @@ export default function LoginPage() {
               required
             >
               <option value="" disabled>Select your account</option>
-              <optgroup label="Admin Accounts">
-                {teamsList.filter(t => t.role === "admin").map((t) => (
-                  <option key={t.name} value={t.name} className="font-bold text-purple-600">{t.name} (Admin)</option>
-                ))}
-              </optgroup>
-              <optgroup label="Team Accounts">
-                {teamsList.filter(t => t.role !== "admin").map((t) => (
-                  <option key={t.name} value={t.name}>{t.name}</option>
-                ))}
-              </optgroup>
+              {teamsList.map((t) => (
+                <option key={t.name} value={t.name}>{t.name}</option>
+              ))}
             </select>
           </div>
 
