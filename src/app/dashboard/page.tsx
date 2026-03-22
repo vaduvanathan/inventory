@@ -1,7 +1,9 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
   const [teamName, setTeamName] = useState("");
@@ -14,13 +16,20 @@ export default function DashboardPage() {
       router.push("/");
     } else {
       setTeamName(storedTeam);
-      const storedReqs = JSON.parse(localStorage.getItem("requests") || "[]");
-      const myReqs = storedReqs.filter((r: any) => r.team === storedTeam);
-      setRequests(myReqs);
+      fetchRequests(storedTeam);
     }
   }, [router]);
 
-  const handleNewRequest = (e: React.FormEvent<HTMLFormElement>) => {
+  async function fetchRequests(team: string) {
+    const { data } = await supabase
+      .from("requests")
+      .select("*")
+      .eq("team", team)
+      .order("timestamp", { ascending: false });
+    if (data) setRequests(data);
+  }
+
+  const handleNewRequest = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
@@ -28,18 +37,19 @@ export default function DashboardPage() {
       id: "REQ-" + Math.floor(Math.random() * 10000),
       team: teamName,
       item: formData.get("item"),
-      quantity: formData.get("quantity"),
+      quantity: Number(formData.get("quantity")),
       location: formData.get("location"),
-      status: "sent",
-      timestamp: new Date().toISOString()
+      status: "sent"
     };
 
-    const allRequests = JSON.parse(localStorage.getItem("requests") || "[]");
-    allRequests.push(newRequest);
-    localStorage.setItem("requests", JSON.stringify(allRequests));
+    const { error } = await supabase.from("requests").insert([newRequest]);
     
-    setRequests([...requests, newRequest]);
-    (e.target as HTMLFormElement).reset();
+    if (!error) {
+      fetchRequests(teamName); // Refresh the list
+      (e.target as HTMLFormElement).reset();
+    } else {
+      alert("Error submitting request. Please try again.");
+    }
   };
 
   return (
@@ -90,12 +100,12 @@ export default function DashboardPage() {
               <p className="text-gray-500">No requests submitted yet.</p>
             ) : (
               <div className="space-y-4 max-h-96 overflow-y-auto">
-                {requests.slice().reverse().map((req, i) => (
+                {requests.map((req, i) => (
                   <div key={i} className="rounded border p-4">
-                    <div className="flex justify-between items-center mb-2">
+                    <div className="mb-2 flex items-center justify-between">
                       <span className="font-bold">{req.id}</span>
                       <span className={`px-2 py-1 rounded text-xs text-white ${req.status === "sent" ? "bg-blue-500" : req.status === "approved" ? "bg-green-500" : "bg-red-500"}`}>
-                        {req.status.toUpperCase()}
+                        {req.status === "sent" ? "Pending" : req.status.toUpperCase()}
                       </span>
                     </div>
                     <p className="text-sm">Item: {req.quantity}x {req.item}</p>
@@ -110,3 +120,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

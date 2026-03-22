@@ -1,47 +1,39 @@
+
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-
-const TEAMS = [
-  "vaduvanathan",
-  "EgoLab (Kolhapur)",
-  "EgoLab (Hyderabad)",
-  "Build AI (Surat)",
-  "Build AI (Nagpur)",
-  "Build AI (Nasik)",
-  "EgoLab (Coimbatore)",
-  "Zelantrix",
-  "Offlens",
-  "Locked In",
-  "Atharv Shah",
-  "Mahid Alhan Vellore",
-  "Mytron Labs (BLR)",
-  "Mytron Labs (Surat)",
-  "Barbarika",
-  "Palam",
-  "Agmaco",
-  "Dukaan",
-  "Awign",
-  "Rudy"
-];
-
-// Temporary Hardcoded Passwords for the Prototype
-const VALID_CREDENTIALS: Record<string, string> = {
-  "Admin": "9080043250",
-  "vaduvanathan": "7305410425"
-};
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const [teamName, setTeamName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [teamsList, setTeamsList] = useState<string[]>([]);
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    async function fetchTeams() {
+      const { data, error } = await supabase.from("teams").select("name");
+      if (data && !error) {
+        setTeamsList(data.map(t => t.name).filter(n => n !== "Admin")); // Get all names except admin
+      }
+    }
+    fetchTeams();
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (teamName && phoneNumber) {
-      // Check if this team has a strict password requirement in our dictionary
-      if (VALID_CREDENTIALS[teamName] && VALID_CREDENTIALS[teamName] !== phoneNumber) {
+      
+      // Query the database for matching team and phone number
+      const { data, error } = await supabase
+        .from("teams")
+        .select("*")
+        .eq("name", teamName)
+        .eq("phone", phoneNumber)
+        .single();
+        
+      if (error || !data) {
         alert("Incorrect Phone Number for this Team!");
         return;
       }
@@ -49,7 +41,7 @@ export default function LoginPage() {
       localStorage.setItem("teamName", teamName);
       localStorage.setItem("phoneNumber", phoneNumber);
       
-      if (teamName === "Admin") {
+      if (data.role === "admin" || teamName === "Admin") {
         router.push("/admin");
       } else {
         router.push("/dashboard");
@@ -73,7 +65,7 @@ export default function LoginPage() {
             >
               <option value="" disabled>Select your team</option>
               <option value="Admin" className="font-bold text-blue-600">HQ Admin</option>
-              {TEAMS.map((team) => (
+              {teamsList.map((team) => (
                 <option key={team} value={team}>
                   {team}
                 </option>
@@ -104,3 +96,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
