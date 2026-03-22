@@ -159,7 +159,7 @@ export default function DashboardPage() {
                     <input name="sd_card_qty" type="number" min="0" defaultValue="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-center text-lg font-bold text-white outline-none transition-all focus:bg-white/10 focus:border-white/30" />
                   </div>
                   <div className="text-center group">
-                    <label className="block text-xs text-white/50 mb-2 group-hover:text-white transition-colors">Hubs</label>
+                    <label className="block text-xs text-white/50 mb-2 group-hover:text-white transition-colors">Charging Hubs</label>
                     <input name="charger_hub_qty" type="number" min="0" defaultValue="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-center text-lg font-bold text-white outline-none transition-all focus:bg-white/10 focus:border-white/30" />
                   </div>
                 </div>
@@ -228,7 +228,7 @@ export default function DashboardPage() {
                         <div className="flex gap-4 font-medium text-sm">
                           {req.device_qty > 0 && <div>Devices: <span className="text-white">{req.device_qty}</span></div>}
                           {req.sd_card_qty > 0 && <div>SD Cards: <span className="text-white">{req.sd_card_qty}</span></div>}
-                          {req.charger_hub_qty > 0 && <div>Hubs: <span className="text-white">{req.charger_hub_qty}</span></div>}
+                          {req.charger_hub_qty > 0 && <div>Charging Hubs: <span className="text-white">{req.charger_hub_qty}</span></div>}
                         </div>
                       </div>
 

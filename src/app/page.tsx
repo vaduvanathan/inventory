@@ -59,18 +59,26 @@ export default function LoginPage() {
         
         <form onSubmit={handleLogin} className="space-y-6 text-left">
           <div className="group">
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/70 transition-colors group-hover:text-white">Account Name</label>
-            <select
-              value={teamName}
-              onChange={(e) => setTeamName(e.target.value)}
-              className="w-full appearance-none rounded-xl bg-white/5 border border-white/10 p-4 text-white outline-none transition-all duration-300 focus:bg-white/10 focus:border-white/30 focus:ring-4 focus:ring-white/5 active:scale-[0.98] cursor-pointer"
-              required
-            >
-              <option value="" disabled className="bg-black text-white">Select your account</option>
-              {teamsList.map((t) => (
-                <option key={t.name} value={t.name} className="bg-neutral-900 text-white">{t.name}</option>
-              ))}
-            </select>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/70 transition-colors group-hover:text-white">Team Name</label>
+            <div className="relative">
+              <select
+                value={teamName}
+                onChange={(e) => setTeamName(e.target.value)}
+                className="w-full appearance-none rounded-xl bg-neutral-900 border border-white/10 p-4 text-white outline-none transition-all duration-300 focus:bg-[#1a1a1a] focus:border-white/30 focus:ring-4 focus:ring-white/5 active:scale-[0.98] cursor-pointer"
+                required
+              >
+                <option value="" disabled className="bg-black text-white">Select your team</option>
+                {teamsList.map((t) => (
+                  <option key={t.name} value={t.name} className="bg-neutral-900 text-white">{t.name}</option>
+                ))}
+              </select>
+              {/* Custom arrow for select to ensure complete dark theme coverage */}
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-white">
+                <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           <div className="group">
