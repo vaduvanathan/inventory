@@ -15,7 +15,7 @@ export default function LoginPage() {
     async function fetchTeams() {
       const { data, error } = await supabase.from("teams").select("name");
       if (data && !error) {
-        setTeamsList(data.map(t => t.name).filter(n => n !== "Admin")); // Get all names except admin
+        setTeamsList(data.map(t => t.name).filter(n => n.toLowerCase() !== "admin")); // Get all names except admin
       }
     }
     fetchTeams();
@@ -29,7 +29,7 @@ export default function LoginPage() {
       const { data, error } = await supabase
         .from("teams")
         .select("*")
-        .eq("name", teamName)
+        .ilike("name", teamName) // Case insensitive match
         .eq("phone", phoneNumber)
         .single();
         

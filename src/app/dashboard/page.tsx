@@ -46,7 +46,8 @@ export default function DashboardPage() {
       fetchRequests(teamName); // Refresh the list
       (e.target as HTMLFormElement).reset();
     } else {
-      alert("Error submitting request. Please try again.");
+      console.error("Supabase Error: ", error);
+      alert("Error submitting request: " + error.message);
     }
   };
 

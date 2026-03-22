@@ -13,7 +13,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     const storedTeam = localStorage.getItem("teamName");
-    if (storedTeam !== "Admin") {
+    if (storedTeam?.toLowerCase() !== "admin") {
       router.push("/");
     } else {
       fetchRequests();
@@ -24,7 +24,8 @@ export default function AdminPage() {
     const { data, error } = await supabase
       .from("requests")
       .select("*")
-      .order("timestamp", { ascending: false });
+      .order("created_at", { ascending: false });
+    if (error) console.error("Fetch requests error:", error);
     if (data) setRequests(data);
   }
 
@@ -38,11 +39,12 @@ export default function AdminPage() {
     if (!newTeamName || !newTeamPhone) return;
 
     const { error } = await supabase.from("teams").insert([
-      { name: newTeamName, phone: newTeamPhone, role: "team" }
+      { name: newTeamName, phone: String(newTeamPhone), role: "team" }
     ]);
 
     if (error) {
-      alert("Error adding team. Maybe the name already exists?");
+      console.error("Insert error:", error);
+      alert("Error adding team: " + error.message);
     } else {
       alert("Team added successfully!");
       setNewTeamName("");
