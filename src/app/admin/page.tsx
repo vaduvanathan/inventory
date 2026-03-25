@@ -3,17 +3,28 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import GlassNotification from "@/components/GlassNotification";
 
 export default function AdminPage() {
   const [adminName, setAdminName] = useState("");
   const [requests, setRequests] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
+  
+  // Notification State
+  const [notification, setNotification] = useState({ show: false, message: "", type: "info" as "success" | "error" | "info" });
+
+  // Form States
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamPhone, setNewTeamPhone] = useState("");
   const [newTeamRole, setNewTeamRole] = useState("team");
+  
+  // Dashboard State
   const [activeTab, setActiveTab] = useState("active");
   const [adminComment, setAdminComment] = useState<{[key: string]: string}>({});
+  const [trackingInfo, setTrackingInfo] = useState<{[key: string]: {courier: string, id: string}}>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  
   const router = useRouter();
 
   useEffect(() => {
@@ -26,8 +37,19 @@ export default function AdminPage() {
       setAdminName(name || "Admin");
       fetchRequests();
       fetchTeams();
+      fetchInventory();
     }
   }, [router]);
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setNotification({ show: true, message, type });
+  };
+
+  async function fetchInventory() {
+    const { data, error } = await supabase.from("inventory").select("*");
+    if(error) console.error("Inv Error", error);
+    if(data) setInventory(data);
+  }
 
   async function fetchRequests() {
     const { data, error } = await supabase
@@ -49,22 +71,66 @@ export default function AdminPage() {
 
   const updateStatus = async (id: string, newStatus: string) => {
     const comment = adminComment[id] || "";
+    const tracking = trackingInfo[id] || { courier: "", id: "" };
     const now = new Date().toISOString();
 
-    const { error } = await supabase.from("requests").update({ 
-      status: newStatus,
-      admin_comment: comment,
-      approved_by: adminName,
-      action_timestamp: now
-    }).eq("id", id); 
-    
-    if (error) {
-      alert("Error updating request: " + error.message);
-    } else {
-      setAdminComment(prev => ({...prev, [id]: ""}));
-      setExpandedId(null);
-      fetchRequests();
+    // Check if approved but tracking missing (optional logic, but good for "logistics")
+const updateStatus = async (id: string, newStatus: string) => {
+    const comment = adminComment[id] || "";
+    const tracking = trackingInfo[id] || { courier: "", id: "" };
+    const now = new Date().toISOString();
+
+    if (newStatus === "approved" && (!tracking.courier || !tracking.id)) {
+      if(!confirm("Warning: No tracking information provided. Approve anyway?")) return;
     }
+
+    if (newStatus === "approved") {
+      // Use RPC for atomic inventory update
+      const { error } = await supabase.rpc('approve_request', { 
+        request_id: id, 
+        admin_name: adminName,
+        tracking_courier: tracking.courier || "",
+        tracking_code: tracking.id || ""
+      });
+
+      if (error) {
+        // Fallback or Error
+        console.error("RPC Error:", error);
+        // Try manual update if RPC fails (e.g. function not created)
+        const { error: updateError } = await supabase.from("requests").update({ 
+          status: newStatus,
+          admin_comment: comment,
+          approved_by: adminName,
+          action_timestamp: now,
+          courier_name: tracking.courier,
+          tracking_id: tracking.id
+        }).eq("id", id);
+        
+        if (updateError) {
+             showToast("Error updating request: " + updateError.message, "error");
+             return;
+        }
+        showToast("Request approved (Inventory update failed - check DB functions)", "info");
+      } else {
+        showToast("Request approved & inventory updated", "success");
+      }
+    } else {
+        // Deny or other status
+        const { error } = await supabase.from("requests").update({ 
+        status: newStatus,
+        admin_comment: comment,
+        approved_by: adminName,
+        action_timestamp: now,
+        }).eq("id", id);
+
+        if (error) showToast("Error: " + error.message, "error");
+        else showToast(`Request ${newStatus}`, "info");
+    }
+    
+    setAdminComment(prev => ({...prev, [id]: ""}));
+    setExpandedId(null);
+    fetchRequests();
+    fetchInventory();
   };
 
   const handleCreateTeam = async (e: React.FormEvent) => {
@@ -76,10 +142,9 @@ export default function AdminPage() {
     ]);
 
     if (error) {
-      console.error("Insert error:", error);
-      alert("Error adding user: " + error.message);
+      showToast("Error adding user: " + error.message, "error");
     } else {
-      alert(newTeamRole === "admin" ? "New admin added successfully!" : "New team added successfully!");
+      showToast(newTeamRole === "admin" ? "New admin added!" : "New team user added!", "success");
       setNewTeamName("");
       setNewTeamPhone("");
       fetchTeams();
@@ -90,8 +155,9 @@ export default function AdminPage() {
     if (confirm(`Are you sure you want to delete the user ${name}?`)) {
       const { error } = await supabase.from("teams").delete().eq("id", id);
       if (error) {
-        alert("Error deleting user: " + error.message);
+        showToast("Error deleting user: " + error.message, "error");
       } else {
+        showToast("User deleted successfully", "success");
         fetchTeams();
       }
     }
@@ -100,10 +166,26 @@ export default function AdminPage() {
   const activeRequests = requests.filter(r => r.status === "sent");
   const closedRequests = requests.filter(r => r.status === "approved" || r.status === "denied");
 
+  // Stats for "Network" tab
+  const totalDevices = requests.filter(r => r.status === "approved").reduce((sum, r) => sum + (r.device_qty || 0), 0);
+  const cities = requests.reduce((acc: any, r) => {
+    const city = r.city || "Unknown";
+    acc[city] = (acc[city] || 0) + (r.device_qty || 0);
+    return acc;
+  }, {});
+  const sortedCities = Object.entries(cities).sort(([,a]: any, [,b]: any) => b - a);
+
   const formatTicketId = (id: number) => `#${String(id).padStart(4, "0")}`;
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden font-sans pb-10">
+      <GlassNotification 
+        message={notification.message}
+        type={notification.type}
+        isVisible={notification.show}
+        onClose={() => setNotification(prev => ({ ...prev, show: false }))}
+      />
+
       <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-blue-500 opacity-[0.03] blur-[150px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-white opacity-5 blur-[120px] pointer-events-none" />
 
@@ -122,10 +204,12 @@ export default function AdminPage() {
         </header>
 
         {/* Tab Navigation */}
-        <div className="flex space-x-2 md:space-x-4 border-b border-white/10 pb-4 overflow-x-auto select-none">
-          <button onClick={() => setActiveTab("active")} className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "active" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Active Tickets <span className="ml-2 bg-black/10 px-2 py-0.5 rounded-full text-xs">{activeRequests.length}</span></button>
-          <button onClick={() => setActiveTab("closed")} className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "closed" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Closed Requests <span className="ml-2 bg-black/10 px-2 py-0.5 rounded-full text-xs">{closedRequests.length}</span></button>
-          <button onClick={() => setActiveTab("users")} className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "users" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Manage Users/Admins</button>
+        <div className="flex space-x-2 md:space-x-4 border-b border-white/10 pb-4 overflow-x-auto select-none no-scrollbar">
+          <button onClick={() => setActiveTab("active")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "active" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Active Tickets <span className="ml-2 bg-black/10 px-2 py-0.5 rounded-full text-xs">{activeRequests.length}</span></button>
+          <button onClick={() => setActiveTab("inventory")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "inventory" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Inventory Status</button>
+          <button onClick={() => setActiveTab("closed")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "closed" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Closed Requests <span className="ml-2 bg-black/10 px-2 py-0.5 rounded-full text-xs">{closedRequests.length}</span></button>
+          <button onClick={() => setActiveTab("network")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "network" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Network Map</button>
+          <button onClick={() => setActiveTab("users")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "users" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Manage Users</button>
         </div>
 
         {/* ACTIVE TICKETS */}
@@ -136,7 +220,7 @@ export default function AdminPage() {
              ) : (
                activeRequests.map((req) => (
                  <div key={req.id} className="rounded-2xl bg-white/5 border border-white/10 p-5 md:p-6 backdrop-blur-xl shadow-lg transition-all duration-500 hover:border-white/20 hover:bg-white/10">
-                   {/* Condensed Header View (Click to expand) */}
+                   {/* Condensed Header View */}
                    <div 
                      className="flex flex-col md:flex-row justify-between md:items-center gap-4 cursor-pointer"
                      onClick={() => setExpandedId(expandedId === req.id ? null : req.id)}
@@ -184,6 +268,33 @@ export default function AdminPage() {
                                "{req.user_comment}"
                              </div>
                            )}
+                           
+                           {/* ADMIN LOGISTICS INPUT */}
+                           <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl space-y-3">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-200">Logistics & Tracking</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-[10px] uppercase text-white/40 mb-1">Courier Service</label>
+                                  <input 
+                                    type="text" 
+                                    placeholder="e.g. DTDC, Delhivery" 
+                                    className="w-full bg-black/30 border border-white/10 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500/50"
+                                    value={trackingInfo[req.id]?.courier || ""}
+                                    onChange={(e) => setTrackingInfo({...trackingInfo, [req.id]: {...trackingInfo[req.id], courier: e.target.value}})}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] uppercase text-white/40 mb-1">Tracking ID</label>
+                                  <input 
+                                    type="text" 
+                                    placeholder="Tracking Number" 
+                                    className="w-full bg-black/30 border border-white/10 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500/50"
+                                    value={trackingInfo[req.id]?.id || ""}
+                                    onChange={(e) => setTrackingInfo({...trackingInfo, [req.id]: {...trackingInfo[req.id], id: e.target.value}})}
+                                  />
+                                </div>
+                              </div>
+                           </div>
                         </div>
 
                         {/* Action Panel */}
@@ -196,7 +307,7 @@ export default function AdminPage() {
                             onChange={(e) => setAdminComment({...adminComment, [req.id]: e.target.value})}
                           />
                           <div className="flex flex-col gap-2 mt-auto">
-                            <button onClick={() => updateStatus(req.id, "approved")} className="w-full bg-green-500/20 text-green-300 border border-green-500/30 py-3 rounded-xl font-bold hover:bg-green-500 hover:text-white transition-all duration-300">Approve</button>
+                            <button onClick={() => updateStatus(req.id, "approved")} className="w-full bg-green-500/20 text-green-300 border border-green-500/30 py-3 rounded-xl font-bold hover:bg-green-500 hover:text-white transition-all duration-300">Approve & Send</button>
                             <button onClick={() => updateStatus(req.id, "denied")} className="w-full bg-red-500/20 text-red-300 border border-red-500/30 py-3 rounded-xl font-bold hover:bg-red-500 hover:text-white transition-all duration-300">Deny</button>
                           </div>
                         </div>
@@ -205,6 +316,45 @@ export default function AdminPage() {
                  </div>
                ))
              )}
+          </div>
+        )}
+
+        {/* INVENTORY TAB */}
+        {activeTab === "inventory" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {inventory.length === 0 ? (
+               <div className="col-span-4 text-center py-20 text-white/40">Inventory data currently unavailable</div>
+            ) : (
+               inventory.map((item) => (
+                 <div key={item.item_name} className="relative overflow-hidden rounded-[2rem] bg-white/5 border border-white/10 p-6 backdrop-blur-2xl ring-1 ring-white/10 transition-all hover:bg-white/10 hover:shadow-2xl">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300">
+                        {/* Icon placeholder */}
+                        <div className="w-5 h-5 bg-current rounded opacity-50" />
+                      </div>
+                      <span className="text-xs uppercase tracking-widest font-bold text-white/40">Item</span>
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-1">{item.item_name}</h3>
+                    <div className="mt-6 space-y-3">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-white/60">Available (HQ)</span>
+                        <span className="font-bold text-green-400">{item.available_stock}</span>
+                      </div>
+                      <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+                        <div className="h-full bg-green-500" style={{ width: `${(item.available_stock / item.total_stock) * 100}%` }}></div>
+                      </div>
+                      <div className="flex justify-between items-center text-sm pt-2 border-t border-white/5">
+                        <span className="text-white/60">In Transit</span>
+                        <span className="font-bold text-yellow-400">{item.in_transit_stock}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-white/60">Deployed</span>
+                        <span className="font-bold text-blue-400">{item.deployed_stock}</span>
+                      </div>
+                    </div>
+                 </div>
+               ))
+            )}
           </div>
         )}
 
@@ -257,11 +407,18 @@ export default function AdminPage() {
                              <div className="col-span-2 md:col-span-4"><span className="block text-[10px] uppercase text-white/40 mb-1">Address</span>{req.location}</div>
                            </div>
 
-                           <div className="flex gap-4 p-4 bg-white/5 rounded-xl border border-white/5">
-                             <div className="flex-1 text-center"><span className="block text-[10px] uppercase text-white/40 mb-1">Devices</span><span className="text-xl font-bold">{req.device_qty || 0}</span></div>
-                             <div className="flex-1 text-center border-l border-white/10"><span className="block text-[10px] uppercase text-white/40 mb-1">SD Cards</span><span className="text-xl font-bold">{req.sd_card_qty || 0}</span></div>
-                             <div className="flex-1 text-center border-l border-white/10"><span className="block text-[10px] uppercase text-white/40 mb-1">Charging Hubs</span><span className="text-xl font-bold">{req.charger_hub_qty || 0}</span></div>
-                           </div>
+                           {req.tracking_id && (
+                             <div className="p-4 bg-green-500/5 border border-green-500/10 rounded-xl flex items-center justify-between">
+                               <div>
+                                 <span className="block text-[10px] uppercase text-green-400/60 mb-1">Logistics Provider</span>
+                                 <span className="text-lg font-bold text-green-300">{req.courier_name || "Unknown"}</span>
+                               </div>
+                               <div className="text-right">
+                                 <span className="block text-[10px] uppercase text-green-400/60 mb-1">Tracking ID</span>
+                                 <span className="font-mono text-lg text-white">{req.tracking_id}</span>
+                               </div>
+                             </div>
+                           )}
                         </div>
 
                         {/* Action Panel for Closed */}
@@ -280,6 +437,67 @@ export default function AdminPage() {
                  </div>
                ))
              )}
+          </div>
+        )}
+
+        {/* NETWORK MAP */}
+        {activeTab === "network" && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Stats Card */}
+              <div className="col-span-1 rounded-[2rem] bg-gradient-to-br from-blue-500/20 to-purple-500/20 p-8 border border-white/10 backdrop-blur-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-20">
+                  <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zM7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 2.88-2.88 7.19-5 9.88C9.92 16.21 7 11.85 7 9z"/><circle cx="12" cy="9" r="2.5"/></svg>
+                </div>
+                <h3 className="text-4xl font-extrabold text-white">{totalDevices}</h3>
+                <p className="text-blue-200 text-sm font-bold uppercase tracking-widest mt-2">Active Devices Deployed</p>
+              </div>
+              
+              <div className="col-span-1 md:col-span-2 rounded-[2rem] bg-white/5 p-8 border border-white/10 backdrop-blur-xl">
+                 <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                   <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                   Regional Distribution
+                 </h3>
+                 <div className="space-y-4">
+                    {sortedCities.length > 0 ? sortedCities.map(([city, count]: any, idx) => (
+                      <div key={idx} className="relative group">
+                        <div className="flex justify-between items-center text-sm mb-1">
+                          <span className="font-semibold text-white/80">{city}</span>
+                          <span className="text-white/40">{count} units</span>
+                        </div>
+                        <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-blue-500 relative"
+                            style={{ width: `${(count / totalDevices) * 100}%` }}
+                          >
+                             <div className="absolute right-0 top-0 bottom-0 w-2 blur-[4px] bg-white/50" />
+                          </div>
+                        </div>
+                      </div>
+                    )) : (
+                      <p className="text-white/30 italic">No geographic data available yet.</p>
+                    )}
+                 </div>
+              </div>
+            </div>
+
+            {/* Simulated Map Visual */}
+            <div className="rounded-[2rem] bg-black/40 border border-white/10 h-[400px] w-full relative overflow-hidden flex items-center justify-center p-4">
+               {/* Grid Background */}
+               <div className="absolute inset-0" 
+                 style={{ 
+                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)',
+                    backgroundSize: '30px 30px'
+                 }} 
+               />
+               <div className="relative z-10 text-center">
+                 <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-blue-500/10 border border-blue-500/30 mb-4 animate-pulse">
+                   <svg className="w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                 </div>
+                 <h2 className="text-2xl font-bold text-white">Live Network Map</h2>
+                 <p className="text-white/50 max-w-md mx-auto mt-2">Geospatial visualization module is initialized. As more devices come online with GPS coordinates, they will populate here.</p>
+               </div>
+            </div>
           </div>
         )}
 

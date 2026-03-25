@@ -3,11 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import GlassNotification from "@/components/GlassNotification";
+// import { syncRequestToSheet } from "../actions"; // Import Server Action
 
 export default function DashboardPage() {
   const [teamName, setTeamName] = useState("");
   const [requests, setRequests] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [notification, setNotification] = useState({ show: false, message: "", type: "info" as "success" | "error" | "info" });
   const router = useRouter();
 
   useEffect(() => {
@@ -21,6 +24,10 @@ export default function DashboardPage() {
       fetchRequests(storedTeam);
     }
   }, [router]);
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setNotification({ show: true, message, type });
+  };
 
   async function fetchRequests(team: string) {
     const { data, error } = await supabase
@@ -39,9 +46,10 @@ export default function DashboardPage() {
     const dQty = Number(formData.get("device_qty")) || 0;
     const sQty = Number(formData.get("sd_card_qty")) || 0;
     const cQty = Number(formData.get("charger_hub_qty")) || 0;
+    const uQty = Number(formData.get("usb_cable_qty")) || 0;
 
-    if (dQty === 0 && sQty === 0 && cQty === 0) {
-      alert("Please request at least one item (Device, SD Card, or Charger Hub).");
+    if (dQty === 0 && sQty === 0 && cQty === 0 && uQty === 0) {
+      showToast("Please request at least one item.", "error");
       return;
     }
 
@@ -58,21 +66,66 @@ export default function DashboardPage() {
       device_qty: dQty,
       sd_card_qty: sQty,
       charger_hub_qty: cQty,
+      usb_cable_qty: uQty,
       user_comment: formData.get("user_comment") || "",
       status: "sent",
       item: "Multiple items",
-      quantity: dQty + sQty + cQty
+      quantity: dQty + sQty + cQty + uQty
     };
 
     const { error } = await supabase.from("requests").insert([newRequest]);
     
     if (!error) {
+      // Google Sheet sync removed for now
+      // await syncRequestToSheet(newRequest);
+      
       fetchRequests(teamName);
       (e.target as HTMLFormElement).reset();
-      alert("Request submitted successfully!");
+      showToast("Request submitted successfully!", "success");
     } else {
       console.error("Supabase Error: ", error);
-      alert("Error submitting request: " + error.message);
+      showToast("Error submitting request: " + error.message, "error");
+    }
+  };
+
+  const handleMarkReceived = async (reqId: any) => {
+    if (!confirm("Confirm you have received these items?")) return;
+
+    // Use RPC if available, or update status manually
+    const { error } = await supabase.rpc('receive_request', { request_id: reqId });
+
+    if (error) {
+       // Fallback for manual update if RPC fails/doesn't exist
+       console.error("RPC Error (Inventory not updated automatically):", error);
+       const { error: updateError } = await supabase.from("requests").update({ status: "completed" }).eq("id", reqId);
+       if(updateError) showToast("Error updating status: " + updateError.message, "error");
+       else {
+         showToast("Items marked as received!", "success");
+         fetchRequests(teamName);
+       }
+    } else {
+       showToast("Items received and inventory updated!", "success");
+       fetchRequests(teamName);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-black text-white p-4 font-sans selection:bg-white/20 selection:text-white">
+      <GlassNotification 
+        show={notification.show} 
+        message={notification.message} 
+        type={notification.type} 
+        onClose={() => setNotification({ ...notification, show: false })} 
+      />
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 h-[95vh]">
+      .update({ courier_name: courier, tracking_id: trackingId })
+      .eq("id", id);
+
+    if (!error) {
+      showToast("Tracking info updated successfully!", "success");
+      fetchRequests(teamName);
+    } else {
+      showToast("Failed to update tracking: " + error.message, "error");
     }
   };
 
@@ -80,6 +133,13 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden font-sans pb-10">
+      <GlassNotification 
+        message={notification.message}
+        type={notification.type}
+        isVisible={notification.show}
+        onClose={() => setNotification(prev => ({ ...prev, show: false }))}
+      />
+
       {/* Background Orbs */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-white opacity-5 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[10%] right-[-10%] w-[30%] h-[50%] rounded-full bg-white opacity-5 blur-[120px] pointer-events-none" />
@@ -149,7 +209,7 @@ export default function DashboardPage() {
 
               <div className="border-t border-white/10 pt-5 mt-2">
                 <label className="block text-sm font-bold mb-3 tracking-wide">Enter Item Quantities</label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-4 gap-3">
                   <div className="text-center group">
                     <label className="block text-xs text-white/50 mb-2 group-hover:text-white transition-colors">Devices</label>
                     <input name="device_qty" type="number" min="0" defaultValue="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-center text-lg font-bold text-white outline-none transition-all focus:bg-white/10 focus:border-white/30" />
@@ -159,8 +219,12 @@ export default function DashboardPage() {
                     <input name="sd_card_qty" type="number" min="0" defaultValue="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-center text-lg font-bold text-white outline-none transition-all focus:bg-white/10 focus:border-white/30" />
                   </div>
                   <div className="text-center group">
-                    <label className="block text-xs text-white/50 mb-2 group-hover:text-white transition-colors">Charging Hubs</label>
+                    <label className="block text-xs text-white/50 mb-2 group-hover:text-white transition-colors">Chargers/Hubs</label>
                     <input name="charger_hub_qty" type="number" min="0" defaultValue="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-center text-lg font-bold text-white outline-none transition-all focus:bg-white/10 focus:border-white/30" />
+                  </div>
+                  <div className="text-center group">
+                    <label className="block text-xs text-white/50 mb-2 group-hover:text-white transition-colors">USB Cables</label>
+                    <input name="usb_cable_qty" type="number" min="0" defaultValue="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-center text-lg font-bold text-white outline-none transition-all focus:bg-white/10 focus:border-white/30" />
                   </div>
                 </div>
               </div>
@@ -223,6 +287,54 @@ export default function DashboardPage() {
                         <div className="col-span-2"><span className="block text-[10px] uppercase text-white/40 mb-1">Address</span>{req.location}</div>
                       </div>
                       
+                      {req.tracking_id ? (
+                        <div className="mt-4 p-4 bg-green-500/5 border border-green-500/10 rounded-xl flex items-center justify-between">
+                          <div>
+                            <span className="block text-[10px] uppercase text-green-400/60 mb-1">Logistics Provider</span>
+                            <span className="text-lg font-bold text-green-300">{req.courier_name || "Courier"}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="block text-[10px] uppercase text-green-400/60 mb-1">Tracking ID</span>
+                            <span className="font-mono text-lg text-white">{req.tracking_id}</span>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {req.status === "approved" && (
+                        <div className="mt-4 pt-4 border-t border-white/10">
+                           <button 
+                             onClick={(e) => { e.stopPropagation(); handleMarkReceived(req.id); }}
+                             className="w-full rounded-xl bg-green-500/20 text-green-300 font-bold p-3 border border-green-500/30 hover:bg-green-500/30 transition-all"
+                           >
+                             Confirm Items Received
+                           </button>
+                           <p className="text-center text-[10px] text-white/40 mt-2">Clicking this confirms you have physically received the package.</p>
+                        </div>
+                      )}
+                    </div> 
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+                      ) : (
+                        <form onSubmit={(e) => handleUpdateTracking(e, req.id)} className="mt-4 p-4 bg-white/5 border border-white/10 rounded-xl">
+                          <span className="block text-[10px] uppercase text-white/40 mb-3">Add Tracking Information (Optional)</span>
+                          <div className="flex flex-col sm:flex-row gap-2">
+                             <input name="courier_name" placeholder="Courier (e.g. DHL)" className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-white/30" required />
+                             <input name="tracking_id" placeholder="Tracking Number" className="flex-[2] bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-white/30" required />
+                             <button type="submit" className="bg-white text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-neutral-200 transition-colors">
+                               Save
+                             </button>
+                          </div>
+                        </form>
+                      )}
+
                       <div className="mt-4 rounded-xl bg-white/5 p-4 border border-white/10">
                         <span className="block text-[10px] uppercase text-white/40 mb-2">Requested Breakdown</span>
                         <div className="flex gap-4 font-medium text-sm">
