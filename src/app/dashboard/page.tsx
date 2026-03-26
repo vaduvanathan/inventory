@@ -329,6 +329,7 @@ export default function DashboardPage() {
               </button>
             </form>
           </div>
+          </div>
 
           {/* Current Status Tracker */}
           <div className="md:col-span-7 flex flex-col h-full rounded-[2rem] bg-white/5 p-6 md:p-8 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)]">
