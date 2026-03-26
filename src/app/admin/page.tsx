@@ -22,6 +22,7 @@ export default function AdminPage() {
   
   // Dashboard State
   const [activeTab, setActiveTab] = useState("inventory");
+  const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [adminComment, setAdminComment] = useState<{[key: string]: string}>({});
   const [trackingInfo, setTrackingInfo] = useState<{[key: string]: {courier: string, id: string}}>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -534,9 +535,9 @@ export default function AdminPage() {
 
                         return (
                           <div key={tName}>
-                             <tr className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setActiveTab(activeTab === `team-${tName}` ? "inventory" : `team-${tName}`)}>
+                            <tr className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setExpandedTeam(expandedTeam === tName ? null : tName)}>
                                <td className="p-4 font-bold text-white flex items-center gap-2">
-                                  {Object.keys(stats.locations).length > 0 && <span className={`text-[10px] text-white/50 transition-transform ${activeTab === `team-${tName}` ? 'rotate-180' : ''}`}>▼</span>}
+                               {Object.keys(stats.locations).length > 0 && <span className={`text-[10px] text-white/50 transition-transform ${expandedTeam === tName ? 'rotate-180' : ''}`}>▼</span>}
                                   {tName}
                                </td>
                                <td className="p-4 text-center text-lg font-mono">{stats.devices}</td>
@@ -556,7 +557,7 @@ export default function AdminPage() {
                              </tr>
                              
                              {/* Expanded Team Details */}
-                             {activeTab === `team-${tName}` && (
+                              {expandedTeam === tName && (
                                 <tr className="bg-white/[0.02]">
                                    <td colSpan={5} className="p-0 animate-in fade-in slide-in-from-top-2 duration-300">
                                       <div className="p-6 pl-12 border-b border-white/10">
