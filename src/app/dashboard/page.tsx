@@ -109,26 +109,6 @@ export default function DashboardPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-black text-white p-4 font-sans selection:bg-white/20 selection:text-white">
-      <GlassNotification 
-        show={notification.show} 
-        message={notification.message} 
-        type={notification.type} 
-        onClose={() => setNotification({ ...notification, show: false })} 
-      />
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 h-[95vh]">
-      .update({ courier_name: courier, tracking_id: trackingId })
-      .eq("id", id);
-
-    if (!error) {
-      showToast("Tracking info updated successfully!", "success");
-      fetchRequests(teamName);
-    } else {
-      showToast("Failed to update tracking: " + error.message, "error");
-    }
-  };
-
   const formatTicketId = (id: number) => `#${String(id).padStart(4, "0")}`;
 
   return (
