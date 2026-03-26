@@ -302,22 +302,6 @@ export default function DashboardPage() {
     </div>
   );
 }
-                      ) : (
-                        <form onSubmit={(e) => handleUpdateTracking(e, req.id)} className="mt-4 p-4 bg-white/5 border border-white/10 rounded-xl">
-                          <span className="block text-[10px] uppercase text-white/40 mb-3">Add Tracking Information (Optional)</span>
-                          <div className="flex flex-col sm:flex-row gap-2">
-                             <input name="courier_name" placeholder="Courier (e.g. DHL)" className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-white/30" required />
-                             <input name="tracking_id" placeholder="Tracking Number" className="flex-[2] bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-white/30" required />
-                             <button type="submit" className="bg-white text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-neutral-200 transition-colors">
-                               Save
-                             </button>
-                          </div>
-                        </form>
-                      )}
-
-                      <div className="mt-4 rounded-xl bg-white/5 p-4 border border-white/10">
-                        <span className="block text-[10px] uppercase text-white/40 mb-2">Requested Breakdown</span>
-                        <div className="flex gap-4 font-medium text-sm">
                           {req.device_qty > 0 && <div>Devices: <span className="text-white">{req.device_qty}</span></div>}
                           {req.sd_card_qty > 0 && <div>SD Cards: <span className="text-white">{req.sd_card_qty}</span></div>}
                           {req.charger_hub_qty > 0 && <div>Charging Hubs: <span className="text-white">{req.charger_hub_qty}</span></div>}
