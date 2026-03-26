@@ -77,58 +77,30 @@ export default function AdminPage() {
     const tracking = trackingInfo[id] || { courier: "", id: "" };
     const now = new Date().toISOString();
 
-    if (newStatus === "approved" && (!tracking.courier || !tracking.id)) {
-      if(!confirm("Warning: No tracking information provided. Approve anyway?")) return;
+    if (newStatus === "approved" && (!comment && !Object.keys(tracking).length)) {
+       // Optional warning or check
     }
 
-    if (newStatus === "approved") {
-      // Use RPC for atomic inventory update
-      const { error } = await supabase.rpc('approve_request', { 
-        request_id: id, 
-        admin_name: adminName,
-        tracking_courier: tracking.courier || "",
-        tracking_code: tracking.id || ""
-      });
-
-      if (error) {
-        // Fallback or Error
-        console.error("RPC Error:", error);
-        // Try manual update if RPC fails (e.g. function not created)
-        const { error: updateError } = await supabase.from("requests").update({ 
-          status: newStatus,
-          admin_comment: comment,
-          approved_by: adminName,
-          action_timestamp: now,
-          courier_name: tracking.courier,
-          tracking_id: tracking.id
-        }).eq("id", id);
-        
-        if (updateError) {
-             showToast("Error updating request: " + updateError.message, "error");
-             return;
-        }
-        showToast("Request approved (Inventory update failed - check DB functions)", "info");
-      } else {
-        showToast("Request approved & inventory updated", "success");
-      }
-    } else {
-        // Deny or other status
-        const { error } = await supabase.from("requests").update({ 
-        status: newStatus,
-        admin_comment: comment,
-        approved_by: adminName,
-        action_timestamp: now,
-        }).eq("id", id);
-
-        if (error) showToast("Error: " + error.message, "error");
-        else showToast(`Request ${newStatus}`, "info");
-    }
+    // Standard Status Update (No RPC magic, just state change)
+    const { error } = await supabase.from("requests").update({ 
+      status: newStatus,
+      admin_comment: comment,
+      approved_by: adminName,
+      action_timestamp: now,
+      courier_name: tracking.courier || null,
+      tracking_id: tracking.id || null
+    }).eq("id", id);
     
-    setAdminComment(prev => ({...prev, [id]: ""}));
-    setExpandedId(null);
-    fetchRequests();
-    fetchInventory();
+    if (error) {
+         showToast("Error updating request: " + error.message, "error");
+    } else {
+         showToast(`Request updated to ${newStatus.toUpperCase()}`, "success");
+         setAdminComment(prev => ({...prev, [id]: ""}));
+         setExpandedId(null);
+         fetchRequests();
+    }
   };
+
 
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,9 +132,9 @@ export default function AdminPage() {
     }
   };
 
-  const activeRequests = requests.filter(r => r.status === "sent");
-  const closedRequests = requests.filter(r => r.status === "approved" || r.status === "denied");
-  const allApproved = requests.filter(r => r.status === "approved" || r.status === "completed");
+  const activeRequests = requests.filter(r => r.status === "sent" || r.status === "approved");
+  const closedRequests = requests.filter(r => r.status === "shipped" || r.status === "denied" || r.status === "completed");
+  const deployedRequests = requests.filter(r => r.status === "shipped" || r.status === "completed");
 
   const teamsStats: Record<string, { devices: number, sdCards: number }> = {};
   
@@ -172,13 +144,20 @@ export default function AdminPage() {
   });
 
   // Aggregate holdings
-  allApproved.forEach(r => {
+  deployedRequests.forEach(r => {
       // Only aggregate if the team exists in our filtered map (i.e. is not an admin, or is a valid team)
       if (teamsStats[r.team]) {
         teamsStats[r.team].devices += (r.device_qty || 0);
         teamsStats[r.team].sdCards += (r.sd_card_qty || 0);
       }
   });
+
+  // Calculate actual deployed totals from requests for the Dashboard UI
+  const calculatedDeployed = deployedRequests.reduce((acc, r) => ({
+      devices: acc.devices + (r.device_qty || 0),
+      sdCards: acc.sdCards + (r.sd_card_qty || 0),
+      hubs: acc.hubs + (r.charger_hub_qty || 0)
+  }), { devices: 0, sdCards: 0, hubs: 0 });
 
   // Function to update HQ Inventory Stock
   const updateHqStock = async (itemName: string, currentStock: number) => {
@@ -198,6 +177,46 @@ export default function AdminPage() {
       }
     }
   };
+
+  const markAsShipped = async (req: any) => {
+      const tracking = trackingInfo[req.id] || { courier: "", id: "" };
+      
+      if (!tracking.courier || !tracking.id) {
+          if (!confirm("No tracking info entered. Mark as shipped anyway?")) return;
+      }
+
+      // 1. Deduct from Inventory (Manual calculation to avoid complex RPC requirements)
+      // Find current stock
+      const deviceStock = inventory.find(i => i.item_name === "Device")?.available_stock || 0;
+      const sdStock = inventory.find(i => i.item_name === "SD Card")?.available_stock || 0;
+      const hubStock = inventory.find(i => i.item_name === "Charging Hub")?.available_stock || 0;
+
+      // Check sufficiency (Visual warning only, we allow negative for admin override)
+      if (req.device_qty > deviceStock) alert(`Warning: Not enough devices in HQ (${deviceStock}). Stock will go negative.`);
+
+      // Update Inventory Tables
+      if (req.device_qty > 0) await supabase.from("inventory").update({ available_stock: deviceStock - req.device_qty }).eq("item_name", "Device");
+      if (req.sd_card_qty > 0) await supabase.from("inventory").update({ available_stock: sdStock - req.sd_card_qty }).eq("item_name", "SD Card");
+      if (req.charger_hub_qty > 0) await supabase.from("inventory").update({ available_stock: hubStock - req.charger_hub_qty }).eq("item_name", "Charging Hub");
+
+      // 2. Update Request Status
+      const { error } = await supabase.from("requests").update({ 
+          status: "shipped", 
+          courier_name: tracking.courier,
+          tracking_id: tracking.id,
+          action_timestamp: new Date().toISOString()
+      }).eq("id", req.id);
+
+      if (error) {
+          showToast("Error updating request: " + error.message, "error");
+      } else {
+          showToast("Request marked as SHIPPED & Inventory deducted", "success");
+          fetchRequests();
+          fetchInventory();
+          setExpandedId(null);
+      }
+  };
+
 
   // Manual Stock Update Handler
   const handleManualStock = async (e: React.FormEvent) => {
@@ -302,7 +321,11 @@ export default function AdminPage() {
                        <div>
                          <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-3">
                            Ticket {formatTicketId(req.id)}
-                           <span className="px-2.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-semibold text-[10px] tracking-wider uppercase border border-blue-500/30">Needs Review</span>
+                           {req.status === "approved" ? (
+                              <span className="px-2.5 py-0.5 bg-yellow-500/20 text-yellow-300 rounded font-semibold text-[10px] tracking-wider uppercase border border-yellow-500/30">Processing Shipment</span>
+                           ) : (
+                              <span className="px-2.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-semibold text-[10px] tracking-wider uppercase border border-blue-500/30">Needs Review</span>
+                           )}
                          </h3>
                          <p className="text-sm text-white/60 mt-1">
                            <span className="font-semibold text-white/90">{req.team}</span> &bull; {req.factory_name} ({req.city || 'Unknown City'}) &bull; <span className="text-white/90">{req.device_qty || 0} Devices</span>
@@ -339,47 +362,64 @@ export default function AdminPage() {
                              </div>
                            )}
                            
-                           {/* ADMIN LOGISTICS INPUT */}
-                           <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl space-y-3">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-200">Logistics & Tracking</h4>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <label className="block text-[10px] uppercase text-white/40 mb-1">Courier Service</label>
-                                  <input 
-                                    type="text" 
-                                    placeholder="e.g. DTDC, Delhivery" 
-                                    className="w-full bg-black/30 border border-white/10 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500/50"
-                                    value={trackingInfo[req.id]?.courier || ""}
-                                    onChange={(e) => setTrackingInfo({...trackingInfo, [req.id]: {...trackingInfo[req.id], courier: e.target.value}})}
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] uppercase text-white/40 mb-1">Tracking ID</label>
-                                  <input 
-                                    type="text" 
-                                    placeholder="Tracking Number" 
-                                    className="w-full bg-black/30 border border-white/10 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500/50"
-                                    value={trackingInfo[req.id]?.id || ""}
-                                    onChange={(e) => setTrackingInfo({...trackingInfo, [req.id]: {...trackingInfo[req.id], id: e.target.value}})}
-                                  />
+                           {/* ADMIN RESOLUTION AREA */}
+                           {req.status === "approved" ? (
+                              /* 1. SHIPPING WORKFLOW (For Approved Requests) */
+                              <div className="col-span-1 md:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-white/10">
+                                 <div className="p-4 bg-yellow-500/5 border border-yellow-500/10 rounded-xl space-y-3">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-yellow-200">Step 2: Logistics & Dispatch</h4>
+                                    <div className="space-y-3">
+                                      <div>
+                                        <label className="block text-[10px] uppercase text-white/40 mb-1">Courier Service</label>
+                                        <input 
+                                          type="text" 
+                                          placeholder="e.g. DTDC, Delhivery" 
+                                          className="w-full bg-black/30 border border-white/10 rounded-lg p-2 text-white focus:outline-none focus:border-yellow-500/50"
+                                          value={trackingInfo[req.id]?.courier || ""}
+                                          onChange={(e) => setTrackingInfo({...trackingInfo, [req.id]: {...trackingInfo[req.id], courier: e.target.value}})}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] uppercase text-white/40 mb-1">Tracking ID</label>
+                                        <input 
+                                          type="text" 
+                                          placeholder="Tracking Number" 
+                                          className="w-full bg-black/30 border border-white/10 rounded-lg p-2 text-white focus:outline-none focus:border-yellow-500/50"
+                                          value={trackingInfo[req.id]?.id || ""}
+                                          onChange={(e) => setTrackingInfo({...trackingInfo, [req.id]: {...trackingInfo[req.id], id: e.target.value}})}
+                                        />
+                                      </div>
+                                    </div>
+                                 </div>
+                                 <div className="flex flex-col justify-end gap-3">
+                                    <div className="text-xs text-white/50 bg-white/5 p-3 rounded-lg border border-white/5">
+                                      <p className="mb-1"><span className="text-yellow-400 font-bold">Caution:</span> Clicking "Ship" will deduct items from HQ inventory.</p>
+                                    </div>
+                                    <button 
+                                      onClick={() => markAsShipped(req)} 
+                                      className="w-full bg-blue-500 text-white shadow-lg shadow-blue-500/20 py-3 rounded-xl font-bold hover:bg-blue-400 transition-all duration-300 flex items-center justify-center gap-2"
+                                    >
+                                      <span>Dispatch & Update Stock</span>
+                                      <span className="text-xl">✈</span>
+                                    </button>
+                                 </div>
+                              </div>
+                           ) : (
+                              /* 2. APPROVAL WORKFLOW (For Sent Requests) */
+                              <div className="flex flex-col gap-3 col-span-1 md:col-start-4">
+                                <label className="text-[10px] uppercase text-white/40 font-bold tracking-wider">Step 1: Admin Resolution</label>
+                                <textarea 
+                                  placeholder="Reasoning here..."
+                                  className="w-full h-24 bg-black/50 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-white/30 focus:ring-2 focus:ring-white/10 resize-none transition-all"
+                                  value={adminComment[req.id] || ""}
+                                  onChange={(e) => setAdminComment({...adminComment, [req.id]: e.target.value})}
+                                />
+                                <div className="flex flex-col gap-2">
+                                  <button onClick={() => updateStatus(req.id, "approved")} className="w-full bg-green-500/20 text-green-300 border border-green-500/30 py-3 rounded-xl font-bold hover:bg-green-500 hover:text-white transition-all duration-300">Approve for Shipping</button>
+                                  <button onClick={() => updateStatus(req.id, "denied")} className="w-full bg-red-500/20 text-red-300 border border-red-500/30 py-3 rounded-xl font-bold hover:bg-red-500 hover:text-white transition-all duration-300">Deny</button>
                                 </div>
                               </div>
-                           </div>
-                        </div>
-
-                        {/* Action Panel */}
-                        <div className="col-span-1 border-t md:border-t-0 md:border-l border-white/10 pt-4 md:pt-0 md:pl-6 flex flex-col gap-3">
-                          <label className="text-[10px] uppercase text-white/40 font-bold tracking-wider">Admin Resolution</label>
-                          <textarea 
-                            placeholder="Reasoning here..."
-                            className="w-full h-24 bg-black/50 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-white/30 focus:ring-2 focus:ring-white/10 resize-none transition-all"
-                            value={adminComment[req.id] || ""}
-                            onChange={(e) => setAdminComment({...adminComment, [req.id]: e.target.value})}
-                          />
-                          <div className="flex flex-col gap-2 mt-auto">
-                            <button onClick={() => updateStatus(req.id, "approved")} className="w-full bg-green-500/20 text-green-300 border border-green-500/30 py-3 rounded-xl font-bold hover:bg-green-500 hover:text-white transition-all duration-300">Approve & Send</button>
-                            <button onClick={() => updateStatus(req.id, "denied")} className="w-full bg-red-500/20 text-red-300 border border-red-500/30 py-3 rounded-xl font-bold hover:bg-red-500 hover:text-white transition-all duration-300">Deny</button>
-                          </div>
+                           )}
                         </div>
                      </div>
                    </div>
@@ -420,7 +460,13 @@ export default function AdminPage() {
                             </div>
                             <div className="text-right">
                                <span className="text-xs text-white/60 block mb-1">Deployed</span>
-                               <span className="text-xl font-bold text-blue-400">{item.deployed_stock}</span>
+                               <span className="text-xl font-bold text-blue-400">
+                                 {
+                                    item.item_name === "Device" ? calculatedDeployed.devices :
+                                    item.item_name === "SD Card" ? calculatedDeployed.sdCards :
+                                    item.item_name === "Charging Hub" ? calculatedDeployed.hubs : item.deployed_stock
+                                 }
+                               </span>
                             </div>
                          </div>
                       </div>
@@ -543,20 +589,20 @@ export default function AdminPage() {
                closedRequests.map((req) => (
                  <div key={req.id} 
                    className={`rounded-2xl border bg-white/5 p-5 md:p-6 backdrop-blur-xl shadow-lg transition-all 
-                     ${req.status === "approved" ? "border-green-500/20 hover:border-green-500/40" : "border-red-500/20 hover:border-red-500/40"}`}
+                     ${req.status !== "denied" ? "border-green-500/20 hover:border-green-500/40" : "border-red-500/20 hover:border-red-500/40"}`}
                  >
                    <div 
                      className="flex flex-col md:flex-row justify-between md:items-center gap-4 cursor-pointer"
                      onClick={() => setExpandedId(expandedId === req.id ? null : req.id)}
                    >
                      <div className="flex items-center gap-4">
-                       <div className={`h-12 w-12 rounded-full border flex items-center justify-center text-lg font-bold shrink-0 ${req.status === 'approved' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
-                         {req.status === 'approved' ? '✓' : '×'}
+                       <div className={`h-12 w-12 rounded-full border flex items-center justify-center text-lg font-bold shrink-0 ${req.status !== 'denied' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+                         {req.status !== 'denied' ? '✓' : '×'}
                        </div>
                        <div>
                          <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-3">
                            Ticket {formatTicketId(req.id)}
-                           <span className={`px-2.5 py-0.5 rounded font-semibold text-[10px] tracking-wider uppercase border ${req.status === "approved" ? "bg-green-500/20 text-green-300 border-green-500/30" : "bg-red-500/20 text-red-300 border-red-500/30"}`}>
+                           <span className={`px-2.5 py-0.5 rounded font-semibold text-[10px] tracking-wider uppercase border ${req.status !== "denied" ? "bg-green-500/20 text-green-300 border-green-500/30" : "bg-red-500/20 text-red-300 border-red-500/30"}`}>
                              {req.status}
                            </span>
                          </h3>
@@ -599,7 +645,7 @@ export default function AdminPage() {
 
                         {/* Action Panel for Closed */}
                         <div className="col-span-1 border-t md:border-t-0 md:border-l border-white/10 pt-4 md:pt-0 md:pl-6 flex flex-col gap-3">
-                           <div className={`p-4 rounded-xl border flex flex-col gap-2 flex-1 ${req.status === 'approved' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                           <div className={`p-4 rounded-xl border flex flex-col gap-2 flex-1 ${req.status !== 'denied' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
                              <p className="text-[10px] uppercase tracking-wider text-white/50 font-bold mb-1">Resolution Details</p>
                              <p className="text-sm text-white/90 italic">"{req.admin_comment || "No commentary provided."}"</p>
                              <div className="mt-auto pt-4 border-t border-white/10 text-[10px] text-white/40 space-y-1">
