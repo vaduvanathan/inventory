@@ -74,12 +74,6 @@ export default function AdminPage() {
     const tracking = trackingInfo[id] || { courier: "", id: "" };
     const now = new Date().toISOString();
 
-    // Check if approved but tracking missing (optional logic, but good for "logistics")
-const updateStatus = async (id: string, newStatus: string) => {
-    const comment = adminComment[id] || "";
-    const tracking = trackingInfo[id] || { courier: "", id: "" };
-    const now = new Date().toISOString();
-
     if (newStatus === "approved" && (!tracking.courier || !tracking.id)) {
       if(!confirm("Warning: No tracking information provided. Approve anyway?")) return;
     }

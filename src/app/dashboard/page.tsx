@@ -302,39 +302,5 @@ export default function DashboardPage() {
     </div>
   );
 }
-                          {req.device_qty > 0 && <div>Devices: <span className="text-white">{req.device_qty}</span></div>}
-                          {req.sd_card_qty > 0 && <div>SD Cards: <span className="text-white">{req.sd_card_qty}</span></div>}
-                          {req.charger_hub_qty > 0 && <div>Charging Hubs: <span className="text-white">{req.charger_hub_qty}</span></div>}
-                        </div>
-                      </div>
 
-                      {req.user_comment && (
-                        <div className="mt-4 text-sm text-white/70 border-l-2 border-white/20 pl-3 py-1">
-                          <span className="block text-[10px] uppercase text-white/40 mb-1">Comment</span>
-                          {req.user_comment}
-                        </div>
-                      )}
-
-                      {(req.status === "approved" || req.status === "denied") && (
-                        <div className={`mt-4 p-4 rounded-xl border flex flex-col gap-2 shadow-inner ${
-                          req.status === "approved" ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20"
-                        }`}>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="font-semibold text-white">Processed by {req.approved_by || "Admin"}</span>
-                            {req.action_timestamp && <span className="text-[10px] text-white/50">{new Date(req.action_timestamp).toLocaleString()}</span>}
-                          </div>
-                          {req.admin_comment && <p className="text-sm italic text-white/90">"{req.admin_comment}"</p>}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
