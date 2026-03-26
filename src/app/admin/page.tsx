@@ -161,13 +161,13 @@ export default function AdminPage() {
   const closedRequests = requests.filter(r => r.status === "approved" || r.status === "denied");
 
   // Stats for "Network" tab
-  const totalDevices = requests.filter(r => r.status === "approved").reduce((sum, r) => sum + (r.device_qty || 0), 0);
-  const cities = requests.reduce((acc: any, r) => {
-    const city = r.city || "Unknown";
-    acc[city] = (acc[city] || 0) + (r.device_qty || 0);
-    return acc;
-  }, {});
-  const sortedCities = Object.entries(cities).sort(([,a]: any, [,b]: any) => b - a);
+  // const totalDevices = requests.filter(r => r.status === "approved").reduce((sum, r) => sum + (r.device_qty || 0), 0);
+  // const cities = requests.reduce((acc: any, r) => {
+  //   const city = r.city || "Unknown";
+  //   acc[city] = (acc[city] || 0) + (r.device_qty || 0);
+  //   return acc;
+  // }, {});
+  // const sortedCities = Object.entries(cities).sort(([,a]: any, [,b]: any) => b - a);
 
   const formatTicketId = (id: number) => `#${String(id).padStart(4, "0")}`;
 
@@ -202,7 +202,6 @@ export default function AdminPage() {
           <button onClick={() => setActiveTab("active")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "active" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Active Tickets <span className="ml-2 bg-black/10 px-2 py-0.5 rounded-full text-xs">{activeRequests.length}</span></button>
           <button onClick={() => setActiveTab("inventory")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "inventory" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Inventory Status</button>
           <button onClick={() => setActiveTab("closed")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "closed" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Closed Requests <span className="ml-2 bg-black/10 px-2 py-0.5 rounded-full text-xs">{closedRequests.length}</span></button>
-          <button onClick={() => setActiveTab("network")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "network" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Network Map</button>
           <button onClick={() => setActiveTab("users")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "users" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Manage Users</button>
         </div>
 
@@ -431,67 +430,6 @@ export default function AdminPage() {
                  </div>
                ))
              )}
-          </div>
-        )}
-
-        {/* NETWORK MAP */}
-        {activeTab === "network" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Stats Card */}
-              <div className="col-span-1 rounded-[2rem] bg-gradient-to-br from-blue-500/20 to-purple-500/20 p-8 border border-white/10 backdrop-blur-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 opacity-20">
-                  <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zM7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 2.88-2.88 7.19-5 9.88C9.92 16.21 7 11.85 7 9z"/><circle cx="12" cy="9" r="2.5"/></svg>
-                </div>
-                <h3 className="text-4xl font-extrabold text-white">{totalDevices}</h3>
-                <p className="text-blue-200 text-sm font-bold uppercase tracking-widest mt-2">Active Devices Deployed</p>
-              </div>
-              
-              <div className="col-span-1 md:col-span-2 rounded-[2rem] bg-white/5 p-8 border border-white/10 backdrop-blur-xl">
-                 <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                   <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                   Regional Distribution
-                 </h3>
-                 <div className="space-y-4">
-                    {sortedCities.length > 0 ? sortedCities.map(([city, count]: any, idx) => (
-                      <div key={idx} className="relative group">
-                        <div className="flex justify-between items-center text-sm mb-1">
-                          <span className="font-semibold text-white/80">{city}</span>
-                          <span className="text-white/40">{count} units</span>
-                        </div>
-                        <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-blue-500 relative"
-                            style={{ width: `${(count / totalDevices) * 100}%` }}
-                          >
-                             <div className="absolute right-0 top-0 bottom-0 w-2 blur-[4px] bg-white/50" />
-                          </div>
-                        </div>
-                      </div>
-                    )) : (
-                      <p className="text-white/30 italic">No geographic data available yet.</p>
-                    )}
-                 </div>
-              </div>
-            </div>
-
-            {/* Simulated Map Visual */}
-            <div className="rounded-[2rem] bg-black/40 border border-white/10 h-[400px] w-full relative overflow-hidden flex items-center justify-center p-4">
-               {/* Grid Background */}
-               <div className="absolute inset-0" 
-                 style={{ 
-                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)',
-                    backgroundSize: '30px 30px'
-                 }} 
-               />
-               <div className="relative z-10 text-center">
-                 <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-blue-500/10 border border-blue-500/30 mb-4 animate-pulse">
-                   <svg className="w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                 </div>
-                 <h2 className="text-2xl font-bold text-white">Live Network Map</h2>
-                 <p className="text-white/50 max-w-md mx-auto mt-2">Geospatial visualization module is initialized. As more devices come online with GPS coordinates, they will populate here.</p>
-               </div>
-            </div>
           </div>
         )}
 

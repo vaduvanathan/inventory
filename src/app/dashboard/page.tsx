@@ -11,6 +11,11 @@ export default function DashboardPage() {
   const [requests, setRequests] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [notification, setNotification] = useState({ show: false, message: "", type: "info" as "success" | "error" | "info" });
+  
+  // Inventory State
+  const [workerCount, setWorkerCount] = useState(0);
+  const [holdings, setHoldings] = useState({ devices: 0, sdCards: 0 });
+
   const router = useRouter();
 
   useEffect(() => {
@@ -22,8 +27,30 @@ export default function DashboardPage() {
     } else {
       setTeamName(storedTeam);
       fetchRequests(storedTeam);
+
+      // Load worker count
+      const workers = localStorage.getItem(`workerCount_${storedTeam}`);
+      if (workers) setWorkerCount(Number(workers));
     }
   }, [router]);
+
+  useEffect(() => {
+    if (requests.length > 0) {
+      // Calculate holdings based on 'completed' (received) items
+      const received = requests.filter(r => r.status === 'completed');
+      const dev = received.reduce((sum, r) => sum + (r.device_qty || 0), 0);
+      const sd = received.reduce((sum, r) => sum + (r.sd_card_qty || 0), 0);
+      setHoldings({ devices: dev, sdCards: sd });
+    }
+  }, [requests]);
+
+  const updateWorkerCount = (val: string) => {
+    const num = Number(val);
+    if (!isNaN(num) && num >= 0) {
+      setWorkerCount(num);
+      if (teamName) localStorage.setItem(`workerCount_${teamName}`, String(num));
+    }
+  };
 
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
     setNotification({ show: true, message, type });
@@ -137,6 +164,39 @@ export default function DashboardPage() {
             Logout
           </button>
         </header>
+
+        {/* CURRENT HOLDINGS & STATS */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+           <div className="rounded-[2rem] bg-indigo-500/10 border border-white/10 p-6 backdrop-blur-md relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <svg className="w-16 h-16" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/></svg> 
+              </div>
+              <h3 className="text-4xl font-extrabold text-white mb-1">{holdings.devices}</h3>
+              <p className="text-xs font-bold uppercase tracking-widest text-indigo-200 opacity-60">My Devices</p>
+           </div>
+           
+           <div className="rounded-[2rem] bg-fuchsia-500/10 border border-white/10 p-6 backdrop-blur-md relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <svg className="w-16 h-16" fill="currentColor" viewBox="0 0 24 24"><path d="M6 2h12v20H6z"/></svg> 
+              </div>
+              <h3 className="text-4xl font-extrabold text-white mb-1">{holdings.sdCards}</h3>
+              <p className="text-xs font-bold uppercase tracking-widest text-fuchsia-200 opacity-60">My SD Cards</p>
+           </div>
+
+           <div className="rounded-[2rem] bg-white/5 border border-white/10 p-6 backdrop-blur-md relative overflow-hidden group hover:bg-white/10 transition-colors">
+              <label className="text-xs font-bold uppercase tracking-widest text-white/50 mb-2 block">Factory Workers</label>
+              <div className="flex items-end gap-3">
+                 <input 
+                   type="number" 
+                   min="0"
+                   value={workerCount}
+                   onChange={(e) => updateWorkerCount(e.target.value)}
+                   className="bg-transparent text-4xl font-extrabold text-white w-20 outline-none border-b border-white/20 focus:border-white/50 transition-colors pb-1"
+                 />
+                 <span className="text-xs text-white/40 mb-2">Total active</span>
+              </div>
+           </div>
+        </div>
 
         <div className="grid gap-8 md:grid-cols-12 items-start">
           {/* New Request Form */}
