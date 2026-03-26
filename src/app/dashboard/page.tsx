@@ -73,9 +73,8 @@ export default function DashboardPage() {
     const dQty = Number(formData.get("device_qty")) || 0;
     const sQty = Number(formData.get("sd_card_qty")) || 0;
     const cQty = Number(formData.get("charger_hub_qty")) || 0;
-    const uQty = Number(formData.get("usb_cable_qty")) || 0;
 
-    if (dQty === 0 && sQty === 0 && cQty === 0 && uQty === 0) {
+    if (dQty === 0 && sQty === 0 && cQty === 0) {
       showToast("Please request at least one item.", "error");
       return;
     }
@@ -93,11 +92,10 @@ export default function DashboardPage() {
       device_qty: dQty,
       sd_card_qty: sQty,
       charger_hub_qty: cQty,
-      usb_cable_qty: uQty,
       user_comment: formData.get("user_comment") || "",
       status: "sent",
       item: "Multiple items",
-      quantity: dQty + sQty + cQty + uQty
+      quantity: dQty + sQty + cQty
     };
 
     const { error } = await supabase.from("requests").insert([newRequest]);
@@ -249,7 +247,7 @@ export default function DashboardPage() {
 
               <div className="border-t border-white/10 pt-5 mt-2">
                 <label className="block text-sm font-bold mb-3 tracking-wide">Enter Item Quantities</label>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="text-center group">
                     <label className="block text-xs text-white/50 mb-2 group-hover:text-white transition-colors">Devices</label>
                     <input name="device_qty" type="number" min="0" defaultValue="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-center text-lg font-bold text-white outline-none transition-all focus:bg-white/10 focus:border-white/30" />
@@ -261,10 +259,6 @@ export default function DashboardPage() {
                   <div className="text-center group">
                     <label className="block text-xs text-white/50 mb-2 group-hover:text-white transition-colors">Chargers/Hubs</label>
                     <input name="charger_hub_qty" type="number" min="0" defaultValue="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-center text-lg font-bold text-white outline-none transition-all focus:bg-white/10 focus:border-white/30" />
-                  </div>
-                  <div className="text-center group">
-                    <label className="block text-xs text-white/50 mb-2 group-hover:text-white transition-colors">USB Cables</label>
-                    <input name="usb_cable_qty" type="number" min="0" defaultValue="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-center text-lg font-bold text-white outline-none transition-all focus:bg-white/10 focus:border-white/30" />
                   </div>
                 </div>
               </div>
