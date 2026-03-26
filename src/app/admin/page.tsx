@@ -10,6 +10,7 @@ export default function AdminPage() {
   const [requests, setRequests] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
+  const [dailyReports, setDailyReports] = useState<any[]>([]);
   
   // Notification State
   const [notification, setNotification] = useState({ show: false, message: "", type: "info" as "success" | "error" | "info" });
@@ -41,6 +42,7 @@ export default function AdminPage() {
       fetchRequests();
       fetchTeams();
       fetchInventory();
+      fetchDailyReports();
     }
   }, [router]);
 
@@ -52,6 +54,15 @@ export default function AdminPage() {
     const { data, error } = await supabase.from("inventory").select("*");
     if(error) console.error("Inv Error", error);
     if(data) setInventory(data);
+  }
+
+  async function fetchDailyReports() {
+    const { data, error } = await supabase
+      .from("daily_reports")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if(error) console.error("Fetch reports error:", error);
+    if(data) setDailyReports(data);
   }
 
   async function fetchRequests() {
@@ -136,11 +147,11 @@ export default function AdminPage() {
   const closedRequests = requests.filter(r => r.status === "shipped" || r.status === "denied" || r.status === "completed");
   const deployedRequests = requests.filter(r => r.status === "shipped" || r.status === "completed");
 
-  const teamsStats: Record<string, { devices: number, sdCards: number }> = {};
+  const teamsStats: Record<string, { devices: number, sdCards: number, locations: Record<string, { devices: number, sdCards: number }> }> = {};
   
   // Initialize teams (Exclude admins from this tracking view)
-  teams.filter(t => t.role !== "admin").forEach(t => {
-      teamsStats[t.name] = { devices: 0, sdCards: 0 };
+    teams.filter(t => t.role !== "admin").forEach(t => {
+      teamsStats[t.name] = { devices: 0, sdCards: 0, locations: {} };
   });
 
   // Aggregate holdings
@@ -149,6 +160,13 @@ export default function AdminPage() {
       if (teamsStats[r.team]) {
         teamsStats[r.team].devices += (r.device_qty || 0);
         teamsStats[r.team].sdCards += (r.sd_card_qty || 0);
+
+        const locKey = r.factory_name || r.location || "Unknown Factory";
+        if (!teamsStats[r.team].locations[locKey]) {
+          teamsStats[r.team].locations[locKey] = { devices: 0, sdCards: 0 };
+        }
+        teamsStats[r.team].locations[locKey].devices += (r.device_qty || 0);
+        teamsStats[r.team].locations[locKey].sdCards += (r.sd_card_qty || 0);
       }
   });
 
@@ -493,6 +511,11 @@ export default function AdminPage() {
                      {Object.entries(teamsStats).map(([tName, stats]) => {
                         const dailyBurn = stats.devices || 1; // Avoid div by zero logically, but physically 0 devices means infinite days
                         const daysLeft = stats.devices > 0 ? (stats.sdCards / stats.devices) : 999;
+                      const latestReport = dailyReports.find((r) => r.team === tName);
+                      const workersToday = latestReport?.workers_today || 0;
+                      const workersProjected = latestReport?.workers_projected || 0;
+                      const factoryWorkers = latestReport?.factory_total_workers || 0;
+                      const utilization = stats.devices > 0 ? Math.min(100, Math.round((workersToday / stats.devices) * 100)) : 0;
                         let statusColor = "text-green-400";
                         let statusText = "Adequate";
                         let bgColor = "bg-green-500/10 border-green-500/20";
@@ -543,25 +566,30 @@ export default function AdminPage() {
                                             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                                                <h4 className="text-[10px] uppercase tracking-wider text-white/40 mb-2">Today's Usage</h4>
                                                <div className="flex items-end gap-2">
-                                                  <span className="text-2xl font-bold text-white">0</span>
+                                                <span className="text-2xl font-bold text-white">{workersToday}</span>
                                                   <span className="text-xs text-white/40 mb-1">Workers deployed</span>
                                                </div>
                                             </div>
                                             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                                                <h4 className="text-[10px] uppercase tracking-wider text-white/40 mb-2">Projected (Next 7 Days)</h4>
                                                <div className="flex items-end gap-2">
-                                                  <span className="text-2xl font-bold text-blue-300">0</span>
+                                                <span className="text-2xl font-bold text-blue-300">{workersProjected}</span>
                                                   <span className="text-xs text-white/40 mb-1">Estimated workers</span>
                                                </div>
                                             </div>
                                             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                                               <h4 className="text-[10px] uppercase tracking-wider text-white/40 mb-2">Device Utilization</h4>
+                                              <h4 className="text-[10px] uppercase tracking-wider text-white/40 mb-2">Factory Workforce</h4>
                                                <div className="flex items-end gap-2">
-                                                  <span className="text-2xl font-bold text-green-300">0%</span>
-                                                  <span className="text-xs text-white/40 mb-1">of total stock active</span>
+                                                <span className="text-2xl font-bold text-green-300">{factoryWorkers}</span>
+                                                <span className="text-xs text-white/40 mb-1">Total workers at team factories</span>
                                                </div>
                                             </div>
                                          </div>
+
+                                          <div className="mb-6 p-3 rounded-lg border border-white/10 bg-white/5 text-xs text-white/60 flex flex-wrap gap-6">
+                                            <span>Utilization: <span className="text-white font-semibold">{utilization}%</span></span>
+                                            <span>Estimated SD runway at projected usage: <span className="text-white font-semibold">{workersProjected > 0 ? (stats.sdCards / workersProjected).toFixed(1) : "-"} days</span></span>
+                                          </div>
 
                                          {/* 2. Factory Breakdown Table */}
                                          <h4 className="text-xs font-bold uppercase tracking-wider text-white/60 mb-3">Active Factories ({Object.keys(stats.locations).length})</h4>
@@ -586,7 +614,7 @@ export default function AdminPage() {
                                                            <td className="p-3 text-white/80 font-medium">{loc}</td>
                                                            <td className="p-3 text-right font-mono text-blue-200">{lStats.devices}</td>
                                                            <td className="p-3 text-right font-mono text-fuchsia-200">{lStats.sdCards}</td>
-                                                           <td className="p-3 text-right text-white/40 italic">Not reported</td>
+                                                          <td className="p-3 text-right text-white/80 font-mono">{stats.devices > 0 ? Math.round((lStats.devices / stats.devices) * workersToday) : 0}</td>
                                                         </tr>
                                                      ))}
                                                   </tbody>

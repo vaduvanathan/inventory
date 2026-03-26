@@ -239,6 +239,14 @@ export default function DashboardPage() {
                     <label className="block text-xs font-semibold uppercase tracking-wider text-green-200/70 mb-2">Est. Workers Next 7 Days</label>
                     <input name="workers_projected" type="number" min="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none focus:border-green-500/50" required />
                   </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-green-200/70 mb-2">Total Workers in Factory</label>
+                    <input name="factory_total_workers" type="number" min="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none focus:border-green-500/50" required />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-green-200/70 mb-2">Comments (Optional)</label>
+                    <textarea name="comments" rows={2} className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none focus:border-green-500/50" />
+                  </div>
                   <button type="submit" className="w-full rounded-xl bg-green-500 text-white font-bold p-3 shadow-lg hover:bg-green-400 transition-colors">
                      Submit Daily Log
                   </button>
