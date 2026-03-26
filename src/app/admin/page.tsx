@@ -510,23 +510,94 @@ export default function AdminPage() {
                         }
 
                         return (
-                          <tr key={tName} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                            <td className="p-4 font-bold text-white">{tName}</td>
-                            <td className="p-4 text-center text-lg font-mono">{stats.devices}</td>
-                            <td className="p-4 text-center text-lg font-mono">{stats.sdCards}</td>
-                            <td className="p-4 text-center">
-                               {stats.devices === 0 ? <span className="text-white/30">-</span> : <span className="font-bold">{daysLeft.toFixed(1)} Days</span>}
-                            </td>
-                            <td className="p-4 text-center">
-                               {stats.devices === 0 ? (
-                                 <span className="px-3 py-1 rounded text-[10px] uppercase bg-white/5 text-white/30 border border-white/5">Inactive</span>
-                               ) : (
-                                 <span className={`px-3 py-1 rounded text-[10px] uppercase font-bold border ${bgColor} ${statusColor}`}>
-                                   {statusText}
-                                 </span>
-                               )}
-                            </td>
-                          </tr>
+                          <div key={tName}>
+                             <tr className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setActiveTab(activeTab === `team-${tName}` ? "inventory" : `team-${tName}`)}>
+                               <td className="p-4 font-bold text-white flex items-center gap-2">
+                                  {Object.keys(stats.locations).length > 0 && <span className={`text-[10px] text-white/50 transition-transform ${activeTab === `team-${tName}` ? 'rotate-180' : ''}`}>▼</span>}
+                                  {tName}
+                               </td>
+                               <td className="p-4 text-center text-lg font-mono">{stats.devices}</td>
+                               <td className="p-4 text-center text-lg font-mono">{stats.sdCards}</td>
+                               <td className="p-4 text-center">
+                                  {stats.devices === 0 ? <span className="text-white/30">-</span> : <span className="font-bold text-white">{daysLeft.toFixed(1)} Days</span>}
+                               </td>
+                               <td className="p-4 text-center">
+                                  {stats.devices === 0 ? (
+                                    <span className="px-3 py-1 rounded text-[10px] uppercase bg-white/5 text-white/30 border border-white/5">Inactive</span>
+                                  ) : (
+                                    <span className={`px-3 py-1 rounded text-[10px] uppercase font-bold border ${bgColor} ${statusColor}`}>
+                                      {statusText}
+                                    </span>
+                                  )}
+                               </td>
+                             </tr>
+                             
+                             {/* Expanded Team Details */}
+                             {activeTab === `team-${tName}` && (
+                                <tr className="bg-white/[0.02]">
+                                   <td colSpan={5} className="p-0 animate-in fade-in slide-in-from-top-2 duration-300">
+                                      <div className="p-6 pl-12 border-b border-white/10">
+                                         
+                                         {/* 1. Daily Usage & Projection Stats */}
+                                         <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                               <h4 className="text-[10px] uppercase tracking-wider text-white/40 mb-2">Today's Usage</h4>
+                                               <div className="flex items-end gap-2">
+                                                  <span className="text-2xl font-bold text-white">0</span>
+                                                  <span className="text-xs text-white/40 mb-1">Workers deployed</span>
+                                               </div>
+                                            </div>
+                                            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                               <h4 className="text-[10px] uppercase tracking-wider text-white/40 mb-2">Projected (Next 7 Days)</h4>
+                                               <div className="flex items-end gap-2">
+                                                  <span className="text-2xl font-bold text-blue-300">0</span>
+                                                  <span className="text-xs text-white/40 mb-1">Estimated workers</span>
+                                               </div>
+                                            </div>
+                                            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                               <h4 className="text-[10px] uppercase tracking-wider text-white/40 mb-2">Device Utilization</h4>
+                                               <div className="flex items-end gap-2">
+                                                  <span className="text-2xl font-bold text-green-300">0%</span>
+                                                  <span className="text-xs text-white/40 mb-1">of total stock active</span>
+                                               </div>
+                                            </div>
+                                         </div>
+
+                                         {/* 2. Factory Breakdown Table */}
+                                         <h4 className="text-xs font-bold uppercase tracking-wider text-white/60 mb-3">Active Factories ({Object.keys(stats.locations).length})</h4>
+                                         {Object.keys(stats.locations).length === 0 ? (
+                                            <div className="text-white/20 text-xs italic p-4 border border-dashed border-white/10 rounded-lg text-center">
+                                               No active factory deployments recorded for this team.
+                                            </div>
+                                         ) : (
+                                            <div className="overflow-hidden rounded-lg border border-white/10">
+                                               <table className="w-full text-left text-xs">
+                                                  <thead className="bg-white/5 text-white/40">
+                                                     <tr>
+                                                        <th className="p-3 font-medium">Factory Name / Location</th>
+                                                        <th className="p-3 font-medium text-right">Devices</th>
+                                                        <th className="p-3 font-medium text-right">SD Cards</th>
+                                                        <th className="p-3 font-medium text-right">Est. Workers</th>
+                                                     </tr>
+                                                  </thead>
+                                                  <tbody className="divide-y divide-white/5">
+                                                     {Object.entries(stats.locations).map(([loc, lStats]: [string, any]) => (
+                                                        <tr key={loc} className="hover:bg-white/5 transition-colors">
+                                                           <td className="p-3 text-white/80 font-medium">{loc}</td>
+                                                           <td className="p-3 text-right font-mono text-blue-200">{lStats.devices}</td>
+                                                           <td className="p-3 text-right font-mono text-fuchsia-200">{lStats.sdCards}</td>
+                                                           <td className="p-3 text-right text-white/40 italic">Not reported</td>
+                                                        </tr>
+                                                     ))}
+                                                  </tbody>
+                                               </table>
+                                            </div>
+                                         )}
+                                      </div>
+                                   </td>
+                                </tr>
+                             )}
+                          </div>
                         );
                      })}
                    </tbody>
