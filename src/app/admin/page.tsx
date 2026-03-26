@@ -20,10 +20,13 @@ export default function AdminPage() {
   const [newTeamRole, setNewTeamRole] = useState("team");
   
   // Dashboard State
-  const [activeTab, setActiveTab] = useState("active");
+  const [activeTab, setActiveTab] = useState("inventory");
   const [adminComment, setAdminComment] = useState<{[key: string]: string}>({});
   const [trackingInfo, setTrackingInfo] = useState<{[key: string]: {courier: string, id: string}}>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  
+  // Manual Stock Add State
+  const [manualStock, setManualStock] = useState({ team: "", devices: 0, sdCards: 0, chargers: 0 });
   
   const router = useRouter();
 
@@ -159,6 +162,59 @@ export default function AdminPage() {
 
   const activeRequests = requests.filter(r => r.status === "sent");
   const closedRequests = requests.filter(r => r.status === "approved" || r.status === "denied");
+  const allApproved = requests.filter(r => r.status === "approved" || r.status === "completed");
+
+  const teamsStats: Record<string, { devices: number, sdCards: number }> = {};
+  
+  // Initialize teams
+  teams.forEach(t => {
+      teamsStats[t.name] = { devices: 0, sdCards: 0 };
+  });
+
+  // Aggregate holdings
+  allApproved.forEach(r => {
+      if (!teamsStats[r.team]) teamsStats[r.team] = { devices: 0, sdCards: 0 };
+      teamsStats[r.team].devices += (r.device_qty || 0);
+      teamsStats[r.team].sdCards += (r.sd_card_qty || 0);
+  });
+
+  // Manual Stock Update Handler
+  const handleManualStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualStock.team) {
+        showToast("Please select a team", "error");
+        return;
+    }
+    
+    // Create a request to represent this manual stock adjustment
+    const { error } = await supabase.from("requests").insert([{
+        team: manualStock.team,
+        factory_name: "HQ Manual Allocation",
+        person_name: adminName,
+        phone_number: "-",
+        city: "HQ",
+        state: "HQ",
+        location: "Inventory Adjustment",
+        pincode: "-",
+        device_qty: Number(manualStock.devices),
+        sd_card_qty: Number(manualStock.sdCards),
+        charger_hub_qty: Number(manualStock.chargers),
+        status: "approved", // Considered sent immediately
+        approved_by: adminName,
+        action_timestamp: new Date().toISOString(),
+        admin_comment: "Manual stock allocation by admin",
+        item: "Stock Update",
+        quantity: Number(manualStock.devices) + Number(manualStock.sdCards) + Number(manualStock.chargers)
+    }]);
+
+    if (error) {
+        showToast("Error adding stock: " + error.message, "error");
+    } else {
+        showToast("Stock allocated successfully!", "success");
+        setManualStock({ team: "", devices: 0, sdCards: 0, chargers: 0 });
+        fetchRequests();
+    }
+  };
 
   // Stats for "Network" tab
   // const totalDevices = requests.filter(r => r.status === "approved").reduce((sum, r) => sum + (r.device_qty || 0), 0);
@@ -199,8 +255,8 @@ export default function AdminPage() {
 
         {/* Tab Navigation */}
         <div className="flex space-x-2 md:space-x-4 border-b border-white/10 pb-4 overflow-x-auto select-none no-scrollbar">
+          <button onClick={() => setActiveTab("inventory")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "inventory" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Inventory Status <span className="ml-2 bg-black/10 px-2 py-0.5 rounded-full text-xs">HQ</span></button>
           <button onClick={() => setActiveTab("active")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "active" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Active Tickets <span className="ml-2 bg-black/10 px-2 py-0.5 rounded-full text-xs">{activeRequests.length}</span></button>
-          <button onClick={() => setActiveTab("inventory")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "inventory" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Inventory Status</button>
           <button onClick={() => setActiveTab("closed")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "closed" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Closed Requests <span className="ml-2 bg-black/10 px-2 py-0.5 rounded-full text-xs">{closedRequests.length}</span></button>
           <button onClick={() => setActiveTab("users")} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === "users" ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>Manage Users</button>
         </div>
@@ -312,42 +368,144 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* INVENTORY TAB */}
+        {/* INVENTORY & TEAM HEALTH TAB */}
         {activeTab === "inventory" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {inventory.length === 0 ? (
-               <div className="col-span-4 text-center py-20 text-white/40">Inventory data currently unavailable</div>
-            ) : (
-               inventory.map((item) => (
-                 <div key={item.item_name} className="relative overflow-hidden rounded-[2rem] bg-white/5 border border-white/10 p-6 backdrop-blur-2xl ring-1 ring-white/10 transition-all hover:bg-white/10 hover:shadow-2xl">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300">
-                        {/* Icon placeholder */}
-                        <div className="w-5 h-5 bg-current rounded opacity-50" />
+          <div className="space-y-12">
+            
+            {/* 1. HQ Inventory */}
+            <div>
+               <h2 className="text-xl font-bold mb-6 border-b border-white/10 pb-2">HQ Warehouse Stock</h2>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                 {inventory.length === 0 ? (
+                    <div className="col-span-4 text-center py-10 text-white/40 italic">Inventory data currently unavailable</div>
+                 ) : (
+                    inventory.map((item) => (
+                      <div key={item.item_name} className="relative overflow-hidden rounded-[2rem] bg-white/5 border border-white/10 p-6 backdrop-blur-2xl ring-1 ring-white/10 transition-all hover:bg-white/10">
+                         <div className="flex items-center justify-between mb-4">
+                           <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300">
+                             <div className="w-5 h-5 bg-current rounded opacity-50" />
+                           </div>
+                           <span className="text-xs uppercase tracking-widest font-bold text-white/40">Item</span>
+                         </div>
+                         <h3 className="text-2xl font-bold text-white mb-1">{item.item_name}</h3>
+                         <div className="mt-6 flex justify-between items-end">
+                            <div>
+                               <span className="text-xs text-white/60 block mb-1">Available (HQ)</span>
+                               <span className="text-3xl font-extrabold text-green-400">{item.available_stock}</span>
+                            </div>
+                            <div className="text-right">
+                               <span className="text-xs text-white/60 block mb-1">Deployed</span>
+                               <span className="text-xl font-bold text-blue-400">{item.deployed_stock}</span>
+                            </div>
+                         </div>
                       </div>
-                      <span className="text-xs uppercase tracking-widest font-bold text-white/40">Item</span>
-                    </div>
-                    <h3 className="text-2xl font-bold text-white mb-1">{item.item_name}</h3>
-                    <div className="mt-6 space-y-3">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-white/60">Available (HQ)</span>
-                        <span className="font-bold text-green-400">{item.available_stock}</span>
-                      </div>
-                      <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
-                        <div className="h-full bg-green-500" style={{ width: `${(item.available_stock / item.total_stock) * 100}%` }}></div>
-                      </div>
-                      <div className="flex justify-between items-center text-sm pt-2 border-t border-white/5">
-                        <span className="text-white/60">In Transit</span>
-                        <span className="font-bold text-yellow-400">{item.in_transit_stock}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-white/60">Deployed</span>
-                        <span className="font-bold text-blue-400">{item.deployed_stock}</span>
-                      </div>
-                    </div>
-                 </div>
-               ))
-            )}
+                    ))
+                 )}
+               </div>
+            </div>
+
+            {/* 2. Team Health Table */}
+            <div>
+               <h2 className="text-xl font-bold mb-6 border-b border-white/10 pb-2">Team Allocation & Health</h2>
+               <div className="overflow-x-auto rounded-[2rem] border border-white/10 bg-white/5 backdrop-blur-xl">
+                 <table className="w-full text-left text-sm">
+                   <thead>
+                     <tr className="border-b border-white/10 bg-white/5 text-xs uppercase tracking-wider text-white/50">
+                       <th className="p-4 font-semibold">Team</th>
+                       <th className="p-4 font-semibold text-center">Devices Held</th>
+                       <th className="p-4 font-semibold text-center">SD Cards Stock</th>
+                       <th className="p-4 font-semibold text-center">Est. Supply Days</th>
+                       <th className="p-4 font-semibold text-center">Health Status</th>
+                     </tr>
+                   </thead>
+                   <tbody>
+                     {Object.entries(teamsStats).map(([tName, stats]) => {
+                        const dailyBurn = stats.devices || 1; // Avoid div by zero logically, but physically 0 devices means infinite days
+                        const daysLeft = stats.devices > 0 ? (stats.sdCards / stats.devices) : 999;
+                        let statusColor = "text-green-400";
+                        let statusText = "Adequate";
+                        let bgColor = "bg-green-500/10 border-green-500/20";
+                        
+                        if (stats.devices > 0) {
+                           if (daysLeft < 3) {
+                              statusColor = "text-red-400";
+                              statusText = "CRITICAL";
+                              bgColor = "bg-red-500/20 border-red-500/30 animate-pulse";
+                           } else if (daysLeft < 6) {
+                              statusColor = "text-yellow-400";
+                              statusText = "Warning";
+                              bgColor = "bg-yellow-500/10 border-yellow-500/20";
+                           }
+                        }
+
+                        return (
+                          <tr key={tName} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td className="p-4 font-bold text-white">{tName}</td>
+                            <td className="p-4 text-center text-lg font-mono">{stats.devices}</td>
+                            <td className="p-4 text-center text-lg font-mono">{stats.sdCards}</td>
+                            <td className="p-4 text-center">
+                               {stats.devices === 0 ? <span className="text-white/30">-</span> : <span className="font-bold">{daysLeft.toFixed(1)} Days</span>}
+                            </td>
+                            <td className="p-4 text-center">
+                               {stats.devices === 0 ? (
+                                 <span className="px-3 py-1 rounded text-[10px] uppercase bg-white/5 text-white/30 border border-white/5">Inactive</span>
+                               ) : (
+                                 <span className={`px-3 py-1 rounded text-[10px] uppercase font-bold border ${bgColor} ${statusColor}`}>
+                                   {statusText}
+                                 </span>
+                               )}
+                            </td>
+                          </tr>
+                        );
+                     })}
+                   </tbody>
+                 </table>
+               </div>
+            </div>
+
+            {/* 3. Manual Allocation */}
+            <div className="rounded-[2rem] border border-white/10 bg-blue-500/5 p-8 backdrop-blur-xl">
+               <h3 className="text-lg font-bold text-blue-200 mb-4">Send Stock to Team (Manual Allocation)</h3>
+               <p className="text-sm text-white/50 mb-6 max-w-2xl">Use this strictly to record devices/cards physically handed over or shipped outside the normal request flow. This will immediately increment their holding count.</p>
+               
+               <form onSubmit={handleManualStock} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                  <div className="md:col-span-1">
+                     <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">Team</label>
+                     <select 
+                       className="w-full rounded-xl bg-black/40 border border-white/10 p-3 text-white outline-none focus:border-blue-500/50"
+                       value={manualStock.team}
+                       onChange={(e) => setManualStock({...manualStock, team: e.target.value})}
+                     >
+                        <option value="">Select Team...</option>
+                        {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                     </select>
+                  </div>
+                  <div>
+                     <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">Devices</label>
+                     <input 
+                       type="number" min="0" 
+                       className="w-full rounded-xl bg-black/40 border border-white/10 p-3 text-white outline-none focus:border-blue-500/50"
+                       value={manualStock.devices}
+                       onChange={(e) => setManualStock({...manualStock, devices: Number(e.target.value)})}
+                     />
+                  </div>
+                  <div>
+                     <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">SD Cards</label>
+                     <input 
+                       type="number" min="0" 
+                       className="w-full rounded-xl bg-black/40 border border-white/10 p-3 text-white outline-none focus:border-blue-500/50"
+                       value={manualStock.sdCards}
+                       onChange={(e) => setManualStock({...manualStock, sdCards: Number(e.target.value)})}
+                     />
+                  </div>
+                  <div>
+                     <button type="submit" className="w-full rounded-xl bg-blue-500 text-white font-bold p-3 shadow-lg hover:bg-blue-400 transition-colors">
+                        Add to Stock
+                     </button>
+                  </div>
+               </form>
+            </div>
+
           </div>
         )}
 
