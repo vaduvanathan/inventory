@@ -166,17 +166,38 @@ export default function AdminPage() {
 
   const teamsStats: Record<string, { devices: number, sdCards: number }> = {};
   
-  // Initialize teams
-  teams.forEach(t => {
+  // Initialize teams (Exclude admins from this tracking view)
+  teams.filter(t => t.role !== "admin").forEach(t => {
       teamsStats[t.name] = { devices: 0, sdCards: 0 };
   });
 
   // Aggregate holdings
   allApproved.forEach(r => {
-      if (!teamsStats[r.team]) teamsStats[r.team] = { devices: 0, sdCards: 0 };
-      teamsStats[r.team].devices += (r.device_qty || 0);
-      teamsStats[r.team].sdCards += (r.sd_card_qty || 0);
+      // Only aggregate if the team exists in our filtered map (i.e. is not an admin, or is a valid team)
+      if (teamsStats[r.team]) {
+        teamsStats[r.team].devices += (r.device_qty || 0);
+        teamsStats[r.team].sdCards += (r.sd_card_qty || 0);
+      }
   });
+
+  // Function to update HQ Inventory Stock
+  const updateHqStock = async (itemName: string, currentStock: number) => {
+    const newStock = prompt(`Update stock for ${itemName}:`, String(currentStock));
+    if (newStock !== null) {
+      const stockNum = parseInt(newStock);
+      if (!isNaN(stockNum) && stockNum >= 0) {
+         const { error } = await supabase.from("inventory").update({ available_stock: stockNum }).eq("item_name", itemName);
+         if (error) {
+            showToast("Failed to update stock: " + error.message, "error");
+         } else {
+            showToast("Stock updated successfully", "success");
+            fetchInventory();
+         }
+      } else {
+        showToast("Invalid stock number", "error");
+      }
+    }
+  };
 
   // Manual Stock Update Handler
   const handleManualStock = async (e: React.FormEvent) => {
@@ -389,9 +410,13 @@ export default function AdminPage() {
                          </div>
                          <h3 className="text-2xl font-bold text-white mb-1">{item.item_name}</h3>
                          <div className="mt-6 flex justify-between items-end">
-                            <div>
-                               <span className="text-xs text-white/60 block mb-1">Available (HQ)</span>
-                               <span className="text-3xl font-extrabold text-green-400">{item.available_stock}</span>
+                            <div 
+                              className="group cursor-pointer p-2 -ml-2 rounded-lg hover:bg-white/10 transition-colors"
+                              title="Click to edit stock"
+                              onClick={() => updateHqStock(item.item_name, item.available_stock)}
+                            >
+                               <span className="text-xs text-white/60 block mb-1 group-hover:text-blue-300">Available (HQ) ✎</span>
+                               <span className="text-3xl font-extrabold text-green-400 group-hover:text-white transition-colors">{item.available_stock}</span>
                             </div>
                             <div className="text-right">
                                <span className="text-xs text-white/60 block mb-1">Deployed</span>
