@@ -133,6 +133,31 @@ export default function DashboardPage() {
        fetchRequests(teamName);
     }
   };
+  
+  const handleDailyReport = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const today = new Date().toISOString().split('T')[0];
+
+    const report = {
+      team: teamName,
+      report_date: today,
+      workers_today: Number(formData.get("workers_today") || 0),
+      workers_projected: Number(formData.get("workers_projected") || 0),
+      factory_total_workers: Number(formData.get("factory_total_workers") || 0),
+      comments: formData.get("comments") || ""
+    };
+
+    const { error } = await supabase.from("daily_reports").insert([report]);
+
+    if (error) {
+       console.error("Report Error:", error);
+       showToast("Error submitting daily report: " + error.message, "error");
+    } else {
+       showToast("Daily report submitted successfully!", "success");
+       (e.target as HTMLFormElement).reset();
+    }
+  };
 
   const formatTicketId = (id: number) => `#${String(id).padStart(4, "0")}`;
 
@@ -197,9 +222,32 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-8 md:grid-cols-12 items-start">
-          {/* New Request Form */}
-          <div className="md:col-span-5 rounded-[2rem] bg-white/5 p-6 md:p-8 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)]">
-            <h2 className="mb-6 text-xl font-bold border-b border-white/10 pb-4">Create New Request</h2>
+          <div className="md:col-span-5 space-y-8">
+            {/* Daily Reporting Card */}
+            <div className="rounded-[2rem] bg-gradient-to-br from-green-900/40 to-emerald-900/20 p-6 md:p-8 backdrop-blur-2xl border border-green-500/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)]">
+               <h2 className="mb-4 text-xl font-bold border-b border-green-500/30 pb-2 flex items-center gap-2">
+                  <span className="text-2xl">📋</span> Daily Deployment Log
+               </h2>
+               <p className="text-xs text-white/50 mb-6">Report daily device usage stats here. This data helps HQ optimize supply chains.</p>
+               
+               <form onSubmit={handleDailyReport} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-green-200/70 mb-2">Workers Wearing Device Today</label>
+                    <input name="workers_today" type="number" min="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none focus:border-green-500/50" required />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-green-200/70 mb-2">Est. Workers Next 7 Days</label>
+                    <input name="workers_projected" type="number" min="0" className="w-full rounded-xl bg-white/5 border border-white/10 p-3 text-white outline-none focus:border-green-500/50" required />
+                  </div>
+                  <button type="submit" className="w-full rounded-xl bg-green-500 text-white font-bold p-3 shadow-lg hover:bg-green-400 transition-colors">
+                     Submit Daily Log
+                  </button>
+               </form>
+            </div>
+
+            {/* New Request Form */}
+            <div className="rounded-[2rem] bg-white/5 p-6 md:p-8 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)]">
+            <h2 className="mb-6 text-xl font-bold border-b border-white/10 pb-4">Create Logistics Request</h2>
             <form onSubmit={handleNewRequest} className="space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
