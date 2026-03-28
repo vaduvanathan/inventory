@@ -98,9 +98,7 @@ export default function AdminPage() {
       status: newStatus,
       admin_comment: comment,
       approved_by: adminName,
-      action_timestamp: now,
-      courier_name: tracking.courier || null,
-      tracking_id: tracking.id || null
+      action_timestamp: now
     }).eq("id", id);
     
     if (error) {
@@ -221,8 +219,6 @@ export default function AdminPage() {
       // 2. Update Request Status
       const { error } = await supabase.from("requests").update({ 
           status: "shipped", 
-          courier_name: tracking.courier,
-          tracking_id: tracking.id,
           action_timestamp: new Date().toISOString()
       }).eq("id", req.id);
 
